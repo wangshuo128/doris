@@ -153,4 +153,10 @@ public class ExchangeNode extends PlanNode {
         return numInstances;
     }
 
+    // ======= The below codes are for new optimizer POC =========
+
+    @Override
+    public <R, C> R accept(PlanNodeVisitor<R, C> visitor, C context) {
+        return visitor.visitExchangeNode(this, context);
+    }
 }

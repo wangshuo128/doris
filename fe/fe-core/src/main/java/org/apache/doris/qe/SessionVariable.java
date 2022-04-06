@@ -178,6 +178,8 @@ public class SessionVariable implements Serializable, Writable {
 
     public static final String ENABLE_PROJECTION = "enable_projection";
 
+    public static final String OPTIMIZER_VERSION = "optimizer_version";
+
     // session origin value
     public Map<Field, String> sessionOriginValue = new HashMap<Field, String>();
     // check stmt is or not [select /*+ SET_VAR(...)*/ ...]
@@ -433,6 +435,13 @@ public class SessionVariable implements Serializable, Writable {
 
     @VariableMgr.VarAttr(name = ENABLE_PROJECTION)
     private boolean enableProjection = false;
+
+    @VariableMgr.VarAttr(name = OPTIMIZER_VERSION)
+    private int optimizerVersion = 1;
+
+    public int getOptimizerVersion() {
+        return optimizerVersion;
+    }
 
     public String getBlockEncryptionMode() {
         return blockEncryptionMode;

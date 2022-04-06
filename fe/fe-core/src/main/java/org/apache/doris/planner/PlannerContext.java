@@ -64,4 +64,12 @@ public class PlannerContext {
     public PlanFragmentId getNextFragmentId() { return fragmentIdGenerator_.getNextId(); }
 
     public boolean isInsert() { return statement_ instanceof InsertStmt; }
+
+    /// for new optimizer
+    public PlannerContext(TQueryOptions queryOptions) {
+        analyzer_ = null;
+        queryOptions_ = queryOptions;
+        queryStmt_ = null;
+        statement_ = null;
+    }
 }

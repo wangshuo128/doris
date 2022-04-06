@@ -348,7 +348,7 @@ public class MockedBackendFactory {
 
         @Override
         public void fetchData(InternalService.PFetchDataRequest request, StreamObserver<InternalService.PFetchDataResult> responseObserver) {
-            System.out.println("get fetch_data request");
+            // System.out.println("get fetch_data request");
             responseObserver.onNext(InternalService.PFetchDataResult.newBuilder()
                     .setStatus(Types.PStatus.newBuilder().setStatusCode(0))
                     .setQueryStatistics(Data.PQueryStatistics.newBuilder()

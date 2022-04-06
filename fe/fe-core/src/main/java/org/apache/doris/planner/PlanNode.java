@@ -929,4 +929,18 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
         sb.append("\n").append(getNodeExplainString("", TExplainLevel.BRIEF));
         return sb.toString();
     }
+
+    // ======= The below codes are for new optimizer POC =========
+
+    /**
+     * To simplify initialization for internal states.
+     */
+    public void completeState() throws Exception {}
+
+    public <R, C> R accept(PlanNodeVisitor<R, C> visitor, C context) {
+        System.out.println("Accept PlanNode, visitor: "
+                               + visitor.getClass().getName() +
+                              ", plan: " + this.getClass().getSimpleName());
+        return visitor.visit(this, context);
+    }
 }

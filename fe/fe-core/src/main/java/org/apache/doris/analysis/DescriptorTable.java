@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Repository for tuple (and slot) descriptors.
@@ -190,5 +191,22 @@ public class DescriptorTable {
             out.append(desc.getExplainString() + "\n");
         }
         return out.toString();
+    }
+
+
+    /// ==== for new optimizer POC =====
+
+    private Map<Long, SlotId> attrIdToSlotId = new HashMap<>();
+
+    /**
+     * register mapping between AttributeReference to SlotDesc
+     */
+    public void registerAttrId(long attrId, SlotId slotId) {
+        attrIdToSlotId.put(attrId, slotId);
+    }
+
+    public SlotDescriptor getSlotDescByAttrId(long attrId) {
+        SlotId slotId = attrIdToSlotId.get(attrId);
+        return getSlotDesc(slotId);
     }
 }

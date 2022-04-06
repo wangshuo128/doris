@@ -934,4 +934,22 @@ public class OlapScanNode extends ScanNode {
             return DataPartition.RANDOM;
         }
     }
+
+    // ======= The below codes are for new optimizer POC =========
+
+    @Override
+    public void completeState() throws Exception {
+        // use base rollup index by default.
+        selectedIndexId = olapTable.getBaseIndexId();
+        // get tables info, do partition pruning in the future.
+        olapTable.getPartitions().forEach(part -> selectedPartitionIds.add(part.getId()));
+        selectedPartitionNum = selectedPartitionIds.size();
+        computeTabletInfo();
+        computeNumNodes();
+    }
+
+    @Override
+    public <R, C> R accept(PlanNodeVisitor<R, C> visitor, C context) {
+        return visitor.visitOlapScanNode(this, context);
+    }
 }

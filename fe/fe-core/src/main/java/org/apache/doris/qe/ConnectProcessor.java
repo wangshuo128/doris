@@ -196,28 +196,35 @@ public class ConnectProcessor {
         StatementBase parsedStmt = null;
         List<Pair<StatementBase, Data.PQueryStatistics>> auditInfoList = Lists.newArrayList();
         boolean alreadyAddedToAuditInfoList = false;
-        try {
-            List<StatementBase> stmts = analyze(originStmt);
-            for (int i = 0; i < stmts.size(); ++i) {
-                alreadyAddedToAuditInfoList = false;
-                ctx.getState().reset();
-                if (i > 0) {
-                    ctx.resetReturnRows();
-                }
-                parsedStmt = stmts.get(i);
-                parsedStmt.setOrigStmt(new OriginStatement(originStmt, i));
-                parsedStmt.setUserInfo(ctx.getCurrentUserIdentity());
-                executor = new StmtExecutor(ctx, parsedStmt);
-                ctx.setExecutor(executor);
-                executor.execute();
 
-                if (i != stmts.size() - 1) {
-                    ctx.getState().serverStatus |= MysqlServerStatusFlag.SERVER_MORE_RESULTS_EXISTS;
-                    finalizeCommand();
+        try {
+            if (originStmt.toLowerCase().contains("select") && ctx.getSessionVariable().getOptimizerVersion() == 2) {
+                // Use new optimize for POC, only support query statement like `SELECT...`.
+                new SqlExecutor(originStmt, ctx).execute();
+            } else {
+                List<StatementBase> stmts = analyze(originStmt);
+                for (int i = 0; i < stmts.size(); ++i) {
+                    alreadyAddedToAuditInfoList = false;
+                    ctx.getState().reset();
+                    if (i > 0) {
+                        ctx.resetReturnRows();
+                    }
+                    parsedStmt = stmts.get(i);
+                    parsedStmt.setOrigStmt(new OriginStatement(originStmt, i));
+                    parsedStmt.setUserInfo(ctx.getCurrentUserIdentity());
+                    executor = new StmtExecutor(ctx, parsedStmt);
+                    ctx.setExecutor(executor);
+                    executor.execute();
+
+                    if (i != stmts.size() - 1) {
+                        ctx.getState().serverStatus |= MysqlServerStatusFlag.SERVER_MORE_RESULTS_EXISTS;
+                        finalizeCommand();
+                    }
+                    auditInfoList.add(new Pair<>(executor.getParsedStmt(), executor.getQueryStatisticsForAuditLog()));
+                    alreadyAddedToAuditInfoList = true;
                 }
-                auditInfoList.add(new Pair<>(executor.getParsedStmt(), executor.getQueryStatisticsForAuditLog()));
-                alreadyAddedToAuditInfoList = true;
             }
+
         } catch (IOException e) {
             // Client failed.
             LOG.warn("Process one query failed because IOException: ", e);

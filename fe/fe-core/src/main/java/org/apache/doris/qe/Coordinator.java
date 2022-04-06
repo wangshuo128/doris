@@ -17,6 +17,7 @@
 
 package org.apache.doris.qe;
 
+import com.google.common.base.Predicates;
 import org.apache.doris.analysis.Analyzer;
 import org.apache.doris.analysis.DescriptorTable;
 import org.apache.doris.analysis.StorageBackend;
@@ -453,15 +454,26 @@ public class Coordinator {
         }
     }
 
+    public void exec() throws Exception {
+        doExec(true);
+    }
+
+    public void exec(boolean sendFragments) throws Exception {
+        doExec(sendFragments);
+    }
+
     // Initiate asynchronous execution of query. Returns as soon as all plan fragments
     // have started executing at their respective backends.
     // 'Request' must contain at least a coordinator plan fragment (ie, can't
     // be for a query like 'SELECT 1').
     // A call to Exec() must precede all other member function calls.
-    public void exec() throws Exception {
+    private void doExec(boolean sendFragments) throws Exception {
         if (LOG.isDebugEnabled() && !scanNodes.isEmpty()) {
             LOG.debug("debug: in Coordinator::exec. query id: {}, planNode: {}",
                     DebugUtil.printId(queryId), scanNodes.get(0).treeToThrift());
+        }
+        if (!scanNodes.isEmpty()) {
+            // System.out.println("coor, do exec, query id: " + DebugUtil.printId(queryId) + ", planNode: " + scanNodes.get(0).treeToThrift());
         }
 
         if (LOG.isDebugEnabled() && !fragments.isEmpty()) {
@@ -522,7 +534,9 @@ public class Coordinator {
             profileDoneSignal.addMark(instanceId, -1L /* value is meaningless */);
         }
 
-        sendFragment();
+        if (sendFragments) {
+            sendFragment();
+        }
     }
 
     private void sendFragment() throws TException, RpcException, UserException {
@@ -2278,7 +2292,38 @@ public class Coordinator {
             this.targetFragmentInstanceAddr = host;
         }
     }
+
+    /// for optimizer POC
+    public Coordinator(List<PlanFragment> fragments, ConnectContext context, DescriptorTable descTable) {
+        this.descTable = descTable.toThrift();
+        this.fragments = fragments;
+        this.scanNodes = extractPlanNodes(fragments);
+        this.queryId = context.queryId();
+        this.queryOptions = context.getSessionVariable().toThrift();
+
+        this.queryGlobals.setNowString(DATE_FORMAT.format(new Date()));
+        this.queryGlobals.setTimestampMs(new Date().getTime());
+        this.queryGlobals.setLoadZeroTolerance(false);
+        if (context.getSessionVariable().getTimeZone().equals("CST")) {
+            this.queryGlobals.setTimeZone(TimeUtils.DEFAULT_TIME_ZONE);
+        } else {
+            this.queryGlobals.setTimeZone(context.getSessionVariable().getTimeZone());
+        }
+        this.tResourceInfo = new TResourceInfo(context.getQualifiedUser(),
+            context.getSessionVariable().getResourceGroup());
+        this.needReport = context.getSessionVariable().enableProfile();
+        this.nextInstanceId = new TUniqueId();
+        nextInstanceId.setHi(queryId.hi);
+        nextInstanceId.setLo(queryId.lo + 1);
+    }
+
+    private List<ScanNode> extractPlanNodes(List<PlanFragment> fragments) {
+        List<ScanNode> result = new ArrayList<>();
+        for (PlanFragment fragment : fragments) {
+            fragment.getPlanRoot().collectAll(Predicates.instanceOf(ScanNode.class),
+                result);
+        }
+        LOG.info("extracted {} ScanNodes", result.size());
+        return result;
+    }
 }
-
-
-

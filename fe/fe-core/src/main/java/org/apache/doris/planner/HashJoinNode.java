@@ -762,4 +762,57 @@ public class HashJoinNode extends PlanNode {
         }
         super.convertToVectoriezd();
     }
+
+    // ======= The below codes are for new optimizer POC =========
+
+    @Override
+    public <R, C> R accept(PlanNodeVisitor<R, C> visitor, C context) {
+        return visitor.visitHashJoinNode(this, context);
+    }
+
+    public HashJoinNode(PlanNodeId id,
+                        PlanNode outer, PlanNode inner,
+                        JoinOperator joinOp,
+                        List<Expr> eqJoinConjuncts, List<Expr> otherJoinConjuncts) {
+        super(id, "HASH JOIN");
+        Preconditions.checkArgument(eqJoinConjuncts != null && !eqJoinConjuncts.isEmpty());
+        Preconditions.checkArgument(otherJoinConjuncts != null);
+        tblRefIds.addAll(outer.getTblRefIds());
+        tblRefIds.addAll(inner.getTblRefIds());
+        this.innerRef = null;
+        this.joinOp = joinOp;
+
+
+        tupleIds.addAll(outer.getTupleIds());
+        tupleIds.addAll(inner.getTupleIds());
+
+        for (Expr eqJoinPredicate : eqJoinConjuncts) {
+            Preconditions.checkArgument(eqJoinPredicate instanceof BinaryPredicate);
+            BinaryPredicate eqJoin = (BinaryPredicate) eqJoinPredicate;
+            if (eqJoin.getOp().equals(BinaryPredicate.Operator.EQ_FOR_NULL)) {
+                Preconditions.checkArgument(eqJoin.getChildren().size() == 2);
+                if (!eqJoin.getChild(0).isNullable() || !eqJoin.getChild(1).isNullable()) {
+                    eqJoin.setOp(BinaryPredicate.Operator.EQ);
+                }
+            }
+            this.eqJoinConjuncts.add(eqJoin);
+        }
+        this.distrMode = DistributionMode.NONE;
+        this.otherJoinConjuncts = otherJoinConjuncts;
+        children.add(outer);
+        children.add(inner);
+
+        // Inherits all the nullable tuple from the children
+        // Mark tuples that form the "nullable" side of the outer join as nullable.
+        nullableTupleIds.addAll(inner.getNullableTupleIds());
+        nullableTupleIds.addAll(outer.getNullableTupleIds());
+        if (joinOp.equals(JoinOperator.FULL_OUTER_JOIN)) {
+            nullableTupleIds.addAll(outer.getTupleIds());
+            nullableTupleIds.addAll(inner.getTupleIds());
+        } else if (joinOp.equals(JoinOperator.LEFT_OUTER_JOIN)) {
+            nullableTupleIds.addAll(inner.getTupleIds());
+        } else if (joinOp.equals(JoinOperator.RIGHT_OUTER_JOIN)) {
+            nullableTupleIds.addAll(outer.getTupleIds());
+        }
+    }
 }
