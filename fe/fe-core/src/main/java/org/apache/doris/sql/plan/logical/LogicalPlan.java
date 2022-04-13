@@ -22,10 +22,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
+import com.google.common.base.Predicates;
 import org.apache.doris.sql.expr.Attribute;
 import org.apache.doris.sql.expr.AttributeSet;
 import org.apache.doris.sql.expr.Expression;
+import org.apache.doris.sql.expr.SubQuery;
 import org.apache.doris.sql.rule.LogicalPlanVisitor;
 import org.apache.doris.sql.tree.TreeNode;
 import org.slf4j.Logger;
@@ -57,34 +58,52 @@ public abstract class LogicalPlan extends TreeNode<LogicalPlan> {
         return visitor.visit(this, context);
     }
 
-    public String treeString() {
-        List<String> lines = new ArrayList<>();
-        treeString(lines, 0, new ArrayList<>(), this);
-        return StringUtils.join(lines, "\n");
+    public List<LogicalPlan> getSubQueryPlans() {
+        List<SubQuery> subQueries = new ArrayList<>();
+        getExpressions().forEach(expr -> {
+            expr.collectAll(Predicates.instanceOf(SubQuery.class), subQueries);
+        });
+        return subQueries.stream().map(SubQuery::getPlan).collect(Collectors.toList());
     }
 
-    private void treeString(List<String> lines, int depth,
+    public String treeString() {
+        StringBuilder builder = new StringBuilder();
+        treeString(builder, 0, new ArrayList<>(), this);
+        return builder.toString();
+    }
+
+    private void treeString(StringBuilder builder, int depth,
                             List<Boolean> lastChildren, LogicalPlan plan) {
-        StringBuilder sb = new StringBuilder();
         if (depth > 0) {
+            // grand parents of the current node
             if (lastChildren.size() > 1) {
                 for (int i = 0; i < lastChildren.size() - 1; i++) {
-                    sb.append(lastChildren.get(i) ? "   " : "|  ");
+                    builder.append(lastChildren.get(i) ? "    " : "│   ");
                 }
             }
+            // direct parent of the current node
             if (lastChildren.size() > 0) {
                 Boolean last = lastChildren.get(lastChildren.size() - 1);
-                sb.append(last ? "+--" : "|--");
+                builder.append(last ? "└──" : "├──");
             }
         }
-        sb.append(plan.toString());
-        lines.add(sb.toString());
+        builder.append(plan);
+        builder.append("\n");
 
         List<LogicalPlan> children = plan.getChildren();
+
+        List<LogicalPlan> subQueryPlans = plan.getSubQueryPlans();
+        for (int i = 0; i < subQueryPlans.size(); i++) {
+            List<Boolean> newLasts = new ArrayList<>(lastChildren);
+            newLasts.add(children.isEmpty());
+            newLasts.add(i + 1 == subQueryPlans.size());
+            treeString(builder, depth + 1, newLasts, subQueryPlans.get(i));
+        }
+
         for (int i = 0; i < children.size(); i++) {
             List<Boolean> newLasts = new ArrayList<>(lastChildren);
             newLasts.add(i + 1 == children.size());
-            treeString(lines, depth + 1, newLasts, children.get(i));
+            treeString(builder, depth + 1, newLasts, children.get(i));
         }
     }
 }

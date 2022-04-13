@@ -32,17 +32,21 @@ public class SubQuery extends Expression {
 
     @Override
     public <R, C> R accept(ExprVisitor<R, C> visitor, C context) {
-        return null;
+        return visitor.visitSubQuery(this, context);
     }
 
     @Override
     public String toString() {
-        return super.toString();
+        return "SubQuery";
     }
 
     @Override
     public List<Expression> getChildren() {
         // todo: impl
         return new ArrayList<>();
+    }
+
+    public LogicalPlan getPlan() {
+        return plan;
     }
 }

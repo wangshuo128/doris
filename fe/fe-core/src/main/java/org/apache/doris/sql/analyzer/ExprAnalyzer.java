@@ -18,6 +18,7 @@
 package org.apache.doris.sql.analyzer;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.doris.sql.analysis.UnresolvedAttribute;
@@ -27,20 +28,31 @@ import org.apache.doris.sql.expr.Attribute;
 import org.apache.doris.sql.expr.AttributeReference;
 import org.apache.doris.sql.expr.BinaryPredicate;
 import org.apache.doris.sql.expr.Expression;
+import org.apache.doris.sql.expr.InPredicate;
 import org.apache.doris.sql.expr.IntLiteral;
+import org.apache.doris.sql.expr.SubQuery;
+import org.apache.doris.sql.plan.logical.LogicalPlan;
 import org.apache.doris.sql.rule.ExprVisitor;
 
 public class ExprAnalyzer {
 
-    private List<Attribute> refAttrs;
+    private final Analyzer analyzer;
 
-    public Expression analyze(Expression expr, List<Attribute> attrs) {
-        this.refAttrs = attrs;
-        Visitor visitor = new Visitor();
+    public ExprAnalyzer(Analyzer analyzer) {
+        this.analyzer = analyzer;
+    }
+
+    public Expression analyze(Expression expr, Scope scope) {
+        Visitor visitor = new Visitor(scope);
         return visitor.visit(expr, null);
     }
 
     private class Visitor extends ExprVisitor<Expression, Void> {
+        private final Scope scope;
+
+        public Visitor(Scope scope) {
+            this.scope = scope;
+        }
 
         @Override
         public Expression visit(Expression expr, Void context) {
@@ -49,7 +61,7 @@ public class ExprAnalyzer {
 
         @Override
         public Expression visitUnresolvedAttribute(UnresolvedAttribute expr, Void context) {
-            List<Attribute> resolved = ResolveUtils.resolveAttr(expr, refAttrs);
+            List<Attribute> resolved = scope.resolve(expr);
             switch (resolved.size()) {
                 case 0:
                     throw new RuntimeException("Cannot resolve " + expr.toString());
@@ -97,6 +109,22 @@ public class ExprAnalyzer {
         @Override
         public Expression visitIntLiteral(IntLiteral expr, Void context) {
             return expr;
+        }
+
+        @Override
+        public Expression visitInPredicate(InPredicate in, Void context) {
+            Expression newValue = visit(in.value, context);
+            Expression newElements = visit(in.elements, context);
+            return new InPredicate(newValue, newElements);
+        }
+
+        @Override
+        public Expression visitSubQuery(SubQuery subQuery, Void context) {
+            Analyzer subqueryAnalyzer = new Analyzer(ExprAnalyzer.this.analyzer.connectContext);
+            // Try to analyze subquery in a new analyzer, with current scope as outer scope
+            // to find references in.
+            LogicalPlan analyzed = subqueryAnalyzer.analyze(subQuery.plan, Optional.of(scope));
+            return new SubQuery(analyzed);
         }
     }
 }

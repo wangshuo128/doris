@@ -272,7 +272,7 @@ public class AstBuilder extends DorisSqlBaseVisitor<Object> {
     private Expression withPredicate(Expression e, PredicateContext ctx) {
         switch (ctx.kind.getType()) {
             case DorisSqlParser.IN:
-                if (ctx.query() == null) {
+                if (ctx.query() != null) {
                     // in subquery
                     // todo: handle not in, etc.
                     return new InPredicate(e, new SubQuery(plan(ctx.query())));

@@ -18,15 +18,43 @@
 package org.apache.doris.sql.analyzer;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.doris.sql.analysis.UnresolvedAttribute;
 import org.apache.doris.sql.expr.Attribute;
 
-public class ResolveUtils {
+/**
+ * A scope is all the attributes can be seen in a query plan node.
+ * `outerScope` is the outer attributes if a plan is a subquery plan.
+ */
+public class Scope {
+    private final Optional<Scope> outerScope;
+    private final List<Attribute> attrs;
 
-    // todo: add index from id to attr in plan output
-    public static List<Attribute> resolveAttr(UnresolvedAttribute ua, List<Attribute> attrs) {
+    public Scope(Optional<Scope> outerScope, List<Attribute> attrs) {
+        this.outerScope = outerScope;
+        this.attrs = attrs;
+    }
+
+    public Scope(List<Attribute> attrs) {
+        this.attrs = attrs;
+        this.outerScope = Optional.empty();
+    }
+
+    public List<Attribute> resolve(UnresolvedAttribute ua) {
+        List<Attribute> resolvedResult = resolve(ua, attrs);
+        if (resolvedResult.isEmpty() && outerScope.isPresent()) {
+            // If can't resolve filed in the current scope, try to resolve in outer scope.
+            // Note that we only support loop up in parent scope, i.e., back track only one level
+            // in scope hierarchy, rather than all the ancestor scopes.
+            return resolve(ua, outerScope.get().attrs);
+        } else {
+            return resolvedResult;
+        }
+    }
+
+    private List<Attribute> resolve(UnresolvedAttribute ua, List<Attribute> attrs) {
         return attrs.stream().filter(attr -> {
             if (ua.getBase().isPresent() && attr.getQualifier().isPresent()) {
                 // table.col
@@ -39,5 +67,9 @@ public class ResolveUtils {
                 return ua.getName().equalsIgnoreCase(attr.getName());
             }
         }).collect(Collectors.toList());
+    }
+
+    public static Scope of(List<Attribute> attrs) {
+        return new Scope(attrs);
     }
 }

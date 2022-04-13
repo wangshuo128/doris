@@ -41,11 +41,10 @@ import org.apache.doris.sql.plan.logical.SubqueryAlias;
 import org.apache.doris.sql.rule.LogicalPlanVisitor;
 
 public class Analyzer {
-
-    private final ConnectContext connectContext;
+    public final ConnectContext connectContext;
     private final Catalog catalog;
 
-    private final ExprAnalyzer exprAnalyzer = new ExprAnalyzer();
+    private final ExprAnalyzer exprAnalyzer = new ExprAnalyzer(this);
 
     public Analyzer(ConnectContext connectContext) {
         this.connectContext = connectContext;
@@ -53,10 +52,21 @@ public class Analyzer {
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
-        return new QueryAnalyzer().visit(plan, null);
+        return analyze(plan, Optional.empty());
+    }
+
+    public LogicalPlan analyze(LogicalPlan plan, Optional<Scope> outerScope) {
+        return new QueryAnalyzer(outerScope).visit(plan, null);
     }
 
     private class QueryAnalyzer extends LogicalPlanVisitor<LogicalPlan, Void> {
+        // Outer scope would be set if this is an analyzer for plan in a subquery.
+        private final Optional<Scope> outerScope;
+
+        public QueryAnalyzer(Optional<Scope> outerScope) {
+            this.outerScope = outerScope;
+        }
+
         @Override
         public LogicalPlan visit(LogicalPlan plan, Void context) {
             return plan.accept(this, context);
@@ -67,7 +77,8 @@ public class Analyzer {
             LogicalPlan visitedChild = visit(project.child, context);
             List<NamedExpression> output =
                 project.projectList.stream()
-                    .map(expr -> (NamedExpression) exprAnalyzer.analyze((Expression) expr, visitedChild.getOutput()))
+                    // todo: handle if can't cast to NamedExpression
+                    .map(expr -> (NamedExpression) exprAnalyzer.analyze(expr, toScope(visitedChild.getOutput())))
                     .collect(Collectors.toList());
             return new Project(output, visitedChild);
         }
@@ -76,7 +87,7 @@ public class Analyzer {
         public LogicalPlan visitFilter(Filter filter, Void context) {
             LogicalPlan child = filter.child;
             LogicalPlan visitedChild = visit(child, context);
-            Expression analyzedCond = exprAnalyzer.analyze(filter.condition, visitedChild.getOutput());
+            Expression analyzedCond = exprAnalyzer.analyze(filter.condition, toScope(visitedChild.getOutput()));
             return new Filter(visitedChild, analyzedCond);
         }
 
@@ -117,7 +128,7 @@ public class Analyzer {
             output.addAll(visitLeft.getOutput());
             output.addAll(visitRight.getOutput());
             Optional<Expression> cond =
-                join.condition.map(expr -> exprAnalyzer.analyze(expr, output));
+                join.condition.map(expr -> exprAnalyzer.analyze(expr, toScope(output)));
             return new Join(visitLeft, visitRight, join.type, cond);
         }
 
@@ -129,6 +140,14 @@ public class Analyzer {
                 return new SubqueryAlias(plan.aliasName, visited);
             } else {
                 return child;
+            }
+        }
+
+        private Scope toScope(List<Attribute> attrs) {
+            if (outerScope.isPresent()) {
+                return new Scope(outerScope, attrs);
+            } else {
+                return Scope.of(attrs);
             }
         }
     }

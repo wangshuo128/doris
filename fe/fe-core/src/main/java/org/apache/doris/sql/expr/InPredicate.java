@@ -41,7 +41,7 @@ public class InPredicate extends Predicate {
 
     @Override
     public String toString() {
-        return value + " IN(" + elements + ")";
+        return value + " IN( " + elements + " )";
     }
 
     @Override

@@ -85,9 +85,25 @@ public class AnalyzerTest {
         String sql1 = "select id from t0";
         String sql2 = "select t0.id from t0 join t1 on t0.id=t1.id";
         String sql3 = "select t0.id, t1.k1 from t0, t1 join t2  " +
-                         "on t1.id=t2.id where t1.id >10";
+                          "on t1.id=t2.id where t1.id >10";
+        analyze(sql3);
+    }
+
+    @Test
+    public void analyzeSubquery() throws Exception {
+        String sql = "select t1.k1\n" +
+                         "from t1\n" +
+                         "where t1.k2 in\n" +
+                         "    (select id\n" +
+                         "     from t2\n" +
+                         "     where t2.k2=t1.k2)";
+        analyze(sql);
+    }
+
+    private void analyze(String sql) throws Exception {
+        System.out.println("===input SQL:===\n" + sql + "\n");
         SqlParser parser = new SqlParser();
-        LogicalPlan parsedPlan = parser.parse(sql3);
+        LogicalPlan parsedPlan = parser.parse(sql);
         System.out.println("====parsed plan:====\n" + parsedPlan.treeString() + "\n");
         Analyzer analyzer = new Analyzer(connectContext);
         LogicalPlan analyzed = analyzer.analyze(parsedPlan);
