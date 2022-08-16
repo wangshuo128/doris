@@ -124,13 +124,14 @@ public class BindSlotReference implements AnalysisRuleFactory {
                 })
             ),
 
-            // **** make sure this rule is the lowest priority in this rule set ****
-            RuleType.BINDING_UNBOUND_LOGICAL_PLAN.build(
+            // NOTE: **** make sure this rule is the lowest priority in this rule set ****
+            RuleType.BINDING_NON_LEAF_LOGICAL_PLAN.build(
                 logicalPlan()
-                        .when(plan -> !(plan instanceof Unbound)
+                        .when(plan -> !plan.resolved()
                                 && !(plan instanceof LeafPlan)
+                                && !(plan instanceof Unbound)
                                 && plan.childrenResolved())
-                        .then(LogicalPlan::reComputeLogicalProperties)
+                        .then(LogicalPlan::recomputeLogicalProperties)
             )
         );
     }

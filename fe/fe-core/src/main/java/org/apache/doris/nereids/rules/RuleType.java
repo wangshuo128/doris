@@ -29,7 +29,7 @@ public enum RuleType {
     // binding rules
 
     // **** make sure BINDING_UNBOUND_LOGICAL_PLAN is the lowest priority in the rewrite rules. ****
-    BINDING_UNBOUND_LOGICAL_PLAN(RuleTypeClass.REWRITE),
+    BINDING_NON_LEAF_LOGICAL_PLAN(RuleTypeClass.REWRITE),
     BINDING_RELATION(RuleTypeClass.REWRITE),
     BINDING_PROJECT_SLOT(RuleTypeClass.REWRITE),
     BINDING_FILTER_SLOT(RuleTypeClass.REWRITE),

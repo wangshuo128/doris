@@ -46,7 +46,7 @@ public interface LogicalPlan extends Plan {
         return ctx.map(a -> f.get()).orElse(this);
     }
 
-    default LogicalPlan reComputeLogicalProperties() {
+    default LogicalPlan recomputeLogicalProperties() {
         return (LogicalPlan) withChildren(ImmutableList.copyOf(children()));
     }
 
