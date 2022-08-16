@@ -65,7 +65,7 @@ public class LogicalOlapScan extends LogicalRelation  {
 
     @Override
     public String toString() {
-        return "ScanOlapTable ("
+        return "LogicalOlapScan ("
                 + qualifiedName()
                 + ", output: "
                 + computeOutput().stream().map(Objects::toString).collect(Collectors.joining(", ", "[",  "]"))

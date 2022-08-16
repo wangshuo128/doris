@@ -53,7 +53,7 @@ public abstract class AbstractPlan extends AbstractTreeNode<Plan> implements Pla
         super(groupExpression, children);
         this.type = Objects.requireNonNull(type, "type can not be null");
         this.groupExpression = Objects.requireNonNull(groupExpression, "groupExpression can not be null");
-        LogicalProperties logicalProperties = optLogicalProperties.orElseGet(() -> computeLogicalProperties(children));
+        LogicalProperties logicalProperties = optLogicalProperties.orElseGet(() -> computeLogicalProperties());
         this.logicalProperties = Objects.requireNonNull(logicalProperties, "logicalProperties can not be null");
     }
 

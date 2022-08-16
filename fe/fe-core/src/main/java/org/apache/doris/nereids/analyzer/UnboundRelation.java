@@ -81,7 +81,7 @@ public class UnboundRelation extends LogicalLeaf implements Unbound {
     }
 
     @Override
-    public LogicalProperties computeLogicalProperties(Plan... inputs) {
+    public LogicalProperties computeLogicalProperties() {
         return new UnboundLogicalProperties();
     }
 
