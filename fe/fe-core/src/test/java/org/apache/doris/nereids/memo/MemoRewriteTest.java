@@ -9,6 +9,7 @@ import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalLimit;
 import org.apache.doris.nereids.trees.plans.logical.LogicalOlapScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
+import org.apache.doris.nereids.trees.plans.logical.LogicalUnary;
 import org.apache.doris.nereids.util.MemoTestUtils;
 import org.apache.doris.nereids.util.PatternMatchSupported;
 import org.apache.doris.nereids.util.PlanChecker;
@@ -58,7 +59,7 @@ public class MemoRewriteTest implements PatternMatchSupported {
     }
 
     @Test
-    public void testRewriteUnboundToBound() {
+    public void testRewriteUnboundPlanToBound() {
         UnboundRelation unboundTable = new UnboundRelation(ImmutableList.of("score"));
         LogicalOlapScan boundTable = new LogicalOlapScan(PlanConstructor.score);
 
@@ -81,7 +82,7 @@ public class MemoRewriteTest implements PatternMatchSupported {
     }
 
     @Test
-    public void testRewriteTwoLevelUnboundToBound() {
+    public void testRecomputeLogicalProperties() {
         UnboundRelation unboundTable = new UnboundRelation(ImmutableList.of("score"));
         LogicalLimit<UnboundRelation> unboundLimit = new LogicalLimit<>(1, 0, unboundTable);
 
@@ -114,5 +115,29 @@ public class MemoRewriteTest implements PatternMatchSupported {
                                 logicalOlapScan().when(boundTable::equals)
                         ).when(boundLimit::equals)
                 );
+    }
+
+    @Test
+    public void testEliminateRootWithChildGroup() {
+        LogicalOlapScan scan = new LogicalOlapScan(PlanConstructor.score);
+        LogicalLimit<Plan> limit = new LogicalLimit<>(1, 0, scan);
+
+        PlanChecker.from(connectContext, limit)
+                .applyBottomUp(logicalLimit().then(LogicalUnary::child))
+                .checkGroupNum(1)
+                .checkGroupExpressionNum(1)
+                .checkFirstRootLogicalPlan(scan);
+    }
+
+    @Test
+    public void testEliminateRootWithChildPlan() {
+        LogicalOlapScan scan = new LogicalOlapScan(PlanConstructor.score);
+        LogicalLimit<Plan> limit = new LogicalLimit<>(1, 0, scan);
+
+        PlanChecker.from(connectContext, limit)
+                .applyBottomUp(logicalLimit(any()).then(LogicalUnary::child))
+                .checkGroupNum(1)
+                .checkGroupExpressionNum(1)
+                .checkFirstRootLogicalPlan(scan);
     }
 }

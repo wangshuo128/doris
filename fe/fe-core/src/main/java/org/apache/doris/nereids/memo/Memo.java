@@ -25,7 +25,9 @@ import org.apache.doris.nereids.properties.LogicalProperties;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.plans.GroupPlan;
 import org.apache.doris.nereids.trees.plans.Plan;
+import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -47,7 +49,7 @@ public class Memo {
     private Group root;
 
     public Memo(Plan plan) {
-        root = copyIn(plan, null, false).second.getOwnerGroup();
+        root = init(plan);
     }
 
     public Group getRoot() {
@@ -126,6 +128,82 @@ public class Memo {
      */
     public CascadesContext newCascadesContext(StatementContext statementContext) {
         return new CascadesContext(this, statementContext);
+    }
+
+    /**
+     * init memo by a first plan.
+     * @param plan first plan
+     * @return plan's corresponding group
+     */
+    private Group init(Plan plan) {
+        Preconditions.checkArgument(!(plan instanceof GroupPlan), "Cannot init memo by a GroupPlan");
+        Preconditions.checkArgument(!plan.getGroupExpression().isPresent(),
+                "Cannot init memo by a plan which contains a groupExpression");
+
+        // create lower groupId for root plan first, then create higher groupId for children plans
+        GroupId newGroupId = groupIdGenerator.getNextId();
+
+        // initialize children recursively
+        List<Group> childrenGroups = plan.children()
+                .stream()
+                .map(this::init)
+                .collect(ImmutableList.toImmutableList());
+
+        plan = replaceChildrenToGroupPlan(plan, childrenGroups);
+        GroupExpression newGroupExpression = new GroupExpression(plan, childrenGroups);
+        Group group = new Group(newGroupId, newGroupExpression, plan.getLogicalProperties());
+
+        groups.add(group);
+        groupExpressions.put(newGroupExpression, newGroupExpression);
+        return group;
+    }
+
+    /**
+     * add or replace the plan into the target group
+     * @param plan the plan which want to rewrite or added
+     * @param targetGroup target group to replace plan. null to generate new Group
+     * @return a pair, in which the first element is true if a newly generated groupExpression added into memo,
+     *         and the second element is a reference of node in Memo
+     */
+    public Pair<Boolean, GroupExpression> rewrite(Plan plan, @Nullable Group targetGroup) {
+        Preconditions.checkArgument(plan != null, "plan can not be null");
+        Preconditions.checkArgument(plan instanceof LogicalPlan, "only logical plan can be rewrite");
+
+        if (plan instanceof GroupPlan || plan.getGroupExpression().isPresent()) {
+            GroupExpression existedLogicalExpression = plan instanceof GroupPlan
+                    ? ((GroupPlan) plan).getGroup().getLogicalExpression()
+                    : plan.getGroupExpression().get();
+            if (targetGroup != null) {
+                Group fromGroup = existedLogicalExpression.getOwnerGroup();
+
+                // clear targetGroup, from exist group move all logical groupExpression
+                // and logicalProperties to target group
+                rewrite(fromGroup, targetGroup, plan.getLogicalProperties());
+            }
+            return Pair.create(false, existedLogicalExpression);
+        }
+
+        List<Group> childrenGroups = Lists.newArrayList();
+        for (int i = 0; i < plan.children().size(); i++) {
+            Plan child = plan.children().get(i);
+            if (child instanceof GroupPlan) {
+                childrenGroups.add(((GroupPlan) child).getGroup());
+            } else if (child.getGroupExpression().isPresent()) {
+                childrenGroups.add(child.getGroupExpression().get().getOwnerGroup());
+            } else {
+                childrenGroups.add(rewrite(child, null).second.getOwnerGroup());
+            }
+        }
+
+        plan = replaceChildrenToGroupPlan(plan, childrenGroups);
+        GroupExpression newGroupExpression = new GroupExpression(plan, childrenGroups);
+
+        GroupExpression existedExpression = groupExpressions.get(newGroupExpression);
+        if (existedExpression != null) {
+
+        } else {
+
+        }
     }
 
     /**
@@ -277,12 +355,58 @@ public class Memo {
         groupExpression.setOwnerGroup(group);
     }
 
+    private void rewrite(Group fromGroup, Group toGroup, LogicalProperties logicalProperties) {
+        List<GroupExpression> logicalExpressions = fromGroup.clearLogicalExpressions();
+        recycleGroup(fromGroup);
+
+        recycleLogicalExpressions(toGroup);
+        recyclePhysicalExpressions(toGroup);
+
+        for (GroupExpression logicalExpression : logicalExpressions) {
+            toGroup.addLogicalExpression(logicalExpression);
+        }
+        toGroup.setLogicalProperties(logicalProperties);
+    }
+
     private Plan replaceChildrenToGroupPlan(Plan plan, List<Group> childrenGroups) {
+        if (childrenGroups.isEmpty()) {
+            return plan;
+        }
         List<Plan> groupPlanChildren = childrenGroups.stream()
                 .map(GroupPlan::new)
                 .collect(ImmutableList.toImmutableList());
         LogicalProperties logicalProperties = plan.getLogicalProperties();
         return plan.withChildren(groupPlanChildren)
             .withLogicalProperties(Optional.of(logicalProperties));
+    }
+
+    private void recycleGroup(Group group) {
+        groups.remove(group);
+        recycleLogicalExpressions(group);
+        recyclePhysicalExpressions(group);
+    }
+
+    private void recycleLogicalExpressions(Group group) {
+        for (GroupExpression logicalExpression : group.getLogicalExpressions()) {
+            recycleExpression(logicalExpression);
+        }
+        group.clearPhysicalExpressions();
+    }
+
+    private void recyclePhysicalExpressions(Group group) {
+        for (GroupExpression physicalExpression : group.getPhysicalExpressions()) {
+            recycleExpression(physicalExpression);
+        }
+        group.clearPhysicalExpressions();
+    }
+
+    private void recycleExpression(GroupExpression groupExpression) {
+        groupExpressions.remove(groupExpression);
+        for (Group childGroup : groupExpression.children()) {
+            // if not any groupExpression reference child group, then recycle the child group
+            if (childGroup.removeParentExpression(groupExpression) == 0) {
+                recycleGroup(childGroup);
+            }
+        }
     }
 }

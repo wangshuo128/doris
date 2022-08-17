@@ -67,6 +67,7 @@ public class GroupExpression {
         this.statDerived = false;
         this.lowestCostTable = Maps.newHashMap();
         this.requestPropertiesMap = Maps.newHashMap();
+        children.forEach(childGroup -> childGroup.addGroupExpression(this));
     }
 
     // TODO: rename
