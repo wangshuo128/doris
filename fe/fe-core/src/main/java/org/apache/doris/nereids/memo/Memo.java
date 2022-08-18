@@ -75,6 +75,10 @@ public class Memo {
      *         and the second element is a reference of node in Memo
      */
     public Pair<Boolean, GroupExpression> copyIn(Plan node, @Nullable Group target, boolean rewrite) {
+        if (rewrite) {
+            return rewrite(node, target);
+        }
+
         Optional<GroupExpression> groupExpr = node.getGroupExpression();
         if (!rewrite && groupExpr.isPresent() && groupExpressions.containsKey(groupExpr.get())) {
             return new Pair<>(false, groupExpr.get());
@@ -169,6 +173,7 @@ public class Memo {
         Preconditions.checkArgument(plan != null, "plan can not be null");
         Preconditions.checkArgument(plan instanceof LogicalPlan, "only logical plan can be rewrite");
 
+        LogicalProperties logicalProperties = plan.getLogicalProperties();
         if (plan instanceof GroupPlan || plan.getGroupExpression().isPresent()) {
             GroupExpression existedLogicalExpression = plan instanceof GroupPlan
                     ? ((GroupPlan) plan).getGroup().getLogicalExpression()
@@ -178,7 +183,7 @@ public class Memo {
 
                 // clear targetGroup, from exist group move all logical groupExpression
                 // and logicalProperties to target group
-                rewrite(fromGroup, targetGroup, plan.getLogicalProperties());
+                rewrite(fromGroup, targetGroup, logicalProperties);
             }
             return Pair.create(false, existedLogicalExpression);
         }
@@ -200,9 +205,34 @@ public class Memo {
 
         GroupExpression existedExpression = groupExpressions.get(newGroupExpression);
         if (existedExpression != null) {
-
+            // at this position, exist the same plan and refer to same children groups,
+            // and the logicalProperties must be recomputed, so we should remove existed group expression
+            // and create a new group expression
+            if (targetGroup == null) {
+                // the existedExpression will be recycled and replaced to newGroupExpression in reInitGroup method
+                reInitGroup(existedExpression.getOwnerGroup(), newGroupExpression, logicalProperties);
+            } else {
+                if (!targetGroup.equals(existedExpression.getOwnerGroup())) {
+                    moveParentExpressionsReference(existedExpression.getOwnerGroup(), targetGroup);
+                    recycleGroup(existedExpression.getOwnerGroup());
+                }
+                // must recycleGroup first, then reInit
+                reInitGroup(targetGroup, newGroupExpression, logicalProperties);
+            }
+            return Pair.create(false, newGroupExpression);
         } else {
-
+            if (targetGroup == null) {
+                // if not exist target group and not exist the same group expression, then create new group
+                Group newGroup = new Group(groupIdGenerator.getNextId(), newGroupExpression,
+                        logicalProperties);
+                groups.add(newGroup);
+            } else {
+                // if exist the target group, clear all origin group expressions in the
+                // existedExpression's owner group and reset logical properties, the
+                // newGroupExpression is the init logical group expression
+                reInitGroup(targetGroup, newGroupExpression, logicalProperties);
+            }
+            return Pair.create(true, newGroupExpression);
         }
     }
 
@@ -366,6 +396,22 @@ public class Memo {
             toGroup.addLogicalExpression(logicalExpression);
         }
         toGroup.setLogicalProperties(logicalProperties);
+        if (root == fromGroup) {
+            root = toGroup;
+        }
+    }
+
+    private void reInitGroup(Group group, GroupExpression initLogicalExpression, LogicalProperties logicalProperties) {
+        recycleLogicalExpressions(group);
+        recyclePhysicalExpressions(group);
+
+        group.setLogicalProperties(logicalProperties);
+        group.addLogicalExpression(initLogicalExpression);
+
+        // note: put newGroupExpression must behind recycle existedExpression(reInitGroup method),
+        //       because existedExpression maybe equal to the newGroupExpression and recycle
+        //       existedExpression will recycle newGroupExpression
+        groupExpressions.put(initLogicalExpression, initLogicalExpression);
     }
 
     private Plan replaceChildrenToGroupPlan(Plan plan, List<Group> childrenGroups) {
@@ -380,6 +426,12 @@ public class Memo {
             .withLogicalProperties(Optional.of(logicalProperties));
     }
 
+    private void moveParentExpressionsReference(Group fromGroup, Group toGroup) {
+        for (GroupExpression parentGroupExpression : fromGroup.getParentGroupExpressions()) {
+            parentGroupExpression.replaceChild(fromGroup, toGroup);
+        }
+    }
+
     private void recycleGroup(Group group) {
         groups.remove(group);
         recycleLogicalExpressions(group);
@@ -387,17 +439,21 @@ public class Memo {
     }
 
     private void recycleLogicalExpressions(Group group) {
-        for (GroupExpression logicalExpression : group.getLogicalExpressions()) {
-            recycleExpression(logicalExpression);
+        if (!group.getLogicalExpressions().isEmpty()) {
+            for (GroupExpression logicalExpression : group.getLogicalExpressions()) {
+                recycleExpression(logicalExpression);
+            }
+            group.clearLogicalExpressions();
         }
-        group.clearPhysicalExpressions();
     }
 
     private void recyclePhysicalExpressions(Group group) {
-        for (GroupExpression physicalExpression : group.getPhysicalExpressions()) {
-            recycleExpression(physicalExpression);
+        if (!group.getPhysicalExpressions().isEmpty()) {
+            for (GroupExpression physicalExpression : group.getPhysicalExpressions()) {
+                recycleExpression(physicalExpression);
+            }
+            group.clearPhysicalExpressions();
         }
-        group.clearPhysicalExpressions();
     }
 
     private void recycleExpression(GroupExpression groupExpression) {

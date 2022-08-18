@@ -34,6 +34,7 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Representation for group expression in cascades optimizer.
@@ -61,13 +62,14 @@ public class GroupExpression {
      * @param children children groups in memo
      */
     public GroupExpression(Plan plan, List<Group> children) {
-        this.plan = Objects.requireNonNull(plan, "plan can not be null");
+        this.plan = Objects.requireNonNull(plan, "plan can not be null")
+                .withGroupExpression(Optional.of(this));
         this.children = Objects.requireNonNull(children);
         this.ruleMasks = new BitSet(RuleType.SENTINEL.ordinal());
         this.statDerived = false;
         this.lowestCostTable = Maps.newHashMap();
         this.requestPropertiesMap = Maps.newHashMap();
-        children.forEach(childGroup -> childGroup.addGroupExpression(this));
+        children.forEach(childGroup -> childGroup.addParentExpression(this));
     }
 
     // TODO: rename
@@ -107,6 +109,25 @@ public class GroupExpression {
 
     public void setChildren(List<Group> children) {
         this.children = children;
+    }
+
+    /**
+     * replaceChild.
+     * @param originChild origin child group
+     * @param newChild new child group
+     */
+    public void replaceChild(Group originChild, Group newChild) {
+        originChild.removeParentExpression(this);
+        for (int i = 0; i < children.size(); i++) {
+            if (children.get(i) == originChild) {
+                children.set(i, newChild);
+                newChild.addParentExpression(this);
+            }
+        }
+    }
+
+    public void setChild(int index, Group group) {
+        this.children.set(index, group);
     }
 
     public boolean hasApplied(Rule rule) {

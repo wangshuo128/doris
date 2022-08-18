@@ -9,7 +9,6 @@ import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalLimit;
 import org.apache.doris.nereids.trees.plans.logical.LogicalOlapScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
-import org.apache.doris.nereids.trees.plans.logical.LogicalUnary;
 import org.apache.doris.nereids.util.MemoTestUtils;
 import org.apache.doris.nereids.util.PatternMatchSupported;
 import org.apache.doris.nereids.util.PlanChecker;
@@ -123,7 +122,7 @@ public class MemoRewriteTest implements PatternMatchSupported {
         LogicalLimit<Plan> limit = new LogicalLimit<>(1, 0, scan);
 
         PlanChecker.from(connectContext, limit)
-                .applyBottomUp(logicalLimit().then(LogicalUnary::child))
+                .applyBottomUp(logicalLimit().then(LogicalLimit::child))
                 .checkGroupNum(1)
                 .checkGroupExpressionNum(1)
                 .checkFirstRootLogicalPlan(scan);
@@ -135,7 +134,7 @@ public class MemoRewriteTest implements PatternMatchSupported {
         LogicalLimit<Plan> limit = new LogicalLimit<>(1, 0, scan);
 
         PlanChecker.from(connectContext, limit)
-                .applyBottomUp(logicalLimit(any()).then(LogicalUnary::child))
+                .applyBottomUp(logicalLimit(any()).then(LogicalLimit::child))
                 .checkGroupNum(1)
                 .checkGroupExpressionNum(1)
                 .checkFirstRootLogicalPlan(scan);
