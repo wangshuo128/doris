@@ -87,4 +87,12 @@ public class AnalyzeSSBTest extends SSBTestBase {
     public void q4_3() {
         checkAnalyze(SSBUtils.Q4_3);
     }
+
+    @Test
+    public void test() throws Exception {
+        String sql = "select * from lineorder left join customer on lo_custkey = c_custkey limit 10";
+        System.out.println("input sql: " + sql);
+        String explain = getSQLPlanOrErrorMsg(sql, true);
+        System.out.println("explain string: \n" + explain);
+    }
 }
