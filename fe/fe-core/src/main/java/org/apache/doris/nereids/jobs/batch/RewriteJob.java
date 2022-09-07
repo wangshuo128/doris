@@ -20,6 +20,7 @@ package org.apache.doris.nereids.jobs.batch;
 import org.apache.doris.nereids.CascadesContext;
 import org.apache.doris.nereids.jobs.Job;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionNormalization;
+import org.apache.doris.nereids.rules.mv.SelectRollup;
 import org.apache.doris.nereids.rules.rewrite.AggregateDisassemble;
 import org.apache.doris.nereids.rules.rewrite.logical.ColumnPruning;
 import org.apache.doris.nereids.rules.rewrite.logical.FindHashConditionForJoin;
@@ -68,6 +69,7 @@ public class RewriteJob extends BatchRulesJob {
                 .add(topDownBatch(ImmutableList.of(new MergeConsecutiveFilters())))
                 .add(bottomUpBatch(ImmutableList.of(new MergeConsecutiveLimits())))
                 .add(topDownBatch(ImmutableList.of(new PruneOlapScanPartition())))
+                .add(topDownBatch(ImmutableList.of(new SelectRollup())))
                 .build();
 
         rulesJob.addAll(jobs);
