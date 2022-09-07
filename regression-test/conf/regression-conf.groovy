@@ -20,11 +20,11 @@
 // **Note**: default db will be create if not exist
 defaultDb = "regression_test"
 
-jdbcUrl = "jdbc:mysql://127.0.0.1:9030/?"
+jdbcUrl = "jdbc:mysql://10.49.56.14:44389/?"
 jdbcUser = "root"
 jdbcPassword = ""
 
-feHttpAddress = "127.0.0.1:8030"
+feHttpAddress = "10.49.56.14:44388"
 feHttpUser = "root"
 feHttpPassword = ""
 

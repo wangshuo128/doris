@@ -16,7 +16,7 @@
 // under the License.
 
 
-suite("rollup select") {
+suite("rollup") {
     // enable nereids and vectorized engine
 
     sql """
@@ -39,6 +39,27 @@ suite("rollup select") {
 
     sql "ALTER TABLE t1 ADD ROLLUP r1(k2, v1)"
 
+
+    def getJobRollupState = { tableName ->
+        def jobStateResult = sql """  SHOW ALTER TABLE ROLLUP WHERE TableName='${tableName}' ORDER BY CreateTime DESC LIMIT 1; """
+        return jobStateResult[0][8]
+    }
+
+    int max_try_secs = 60
+    while (max_try_secs--) {
+        String res = getJobRollupState("t1")
+        if (res == "FINISHED") {
+            break
+        } else {
+            Thread.sleep(2000)
+            if (max_try_secs < 1) {
+                println "test timeout," + "state:" + res
+                assertEquals("FINISHED",res)
+            }
+        }
+    }
+    Thread.sleep(200)
+
     sql "insert into t1 values(1, 2, 3, 4)"
     sql "insert into t1 values(1, 2, 3, 2)"
     sql "insert into t1 values(2, 3, 4, 1)"
@@ -53,5 +74,12 @@ suite("rollup select") {
         contains("t1(r1)")
     }
 
-    qt_r1 "select k2, sum(v1) from t1 group by k2"
+    explain {
+        sql("select k1, sum(v1) from t1 group by k1")
+        contains("t1(t1)")
+    }
+
+    order_qt_rollup1 "select k2, sum(v1) from t1 group by k2"
+
+    order_qt_rollup2 "select k1, sum(v1) from t1 group by k1"
 }
