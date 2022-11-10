@@ -19,9 +19,14 @@ package org.apache.doris.nereids.rules.mv;
 
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.nereids.util.PlanChecker;
+import org.apache.doris.planner.OlapScanNode;
+import org.apache.doris.planner.ScanNode;
 import org.apache.doris.utframe.TestWithFeService;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 class BitmapRewriteTest extends TestWithFeService {
     @Override
@@ -72,7 +77,15 @@ class BitmapRewriteTest extends TestWithFeService {
         createMv("create materialized view mv1 as "
                 + "select k1, bitmap_union(to_bitmap(v1)) from t1 group by k1");
         PlanChecker.from(connectContext)
-                .checkPlannerResult("select k1, count(distinct v1) from t1 group by k1");
+                .checkPlannerResult("select k1, count(distinct v1) from t1 group by k1", planner -> {
+                    List<ScanNode> scans = planner.getScanNodes();
+                    Assertions.assertEquals(1, scans.size());
+                    ScanNode scanNode = scans.get(0);
+                    Assertions.assertTrue(scanNode instanceof OlapScanNode);
+                    OlapScanNode olapScan = (OlapScanNode) scanNode;
+                    String indexName = olapScan.getSelectedIndexName();
+                    System.out.println("index name: " + indexName);
+                });
     }
 
     @Test

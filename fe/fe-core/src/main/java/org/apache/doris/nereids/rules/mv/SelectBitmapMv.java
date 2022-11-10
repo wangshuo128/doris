@@ -20,7 +20,7 @@ package org.apache.doris.nereids.rules.mv;
 import org.apache.doris.analysis.CreateMaterializedViewStmt;
 import org.apache.doris.catalog.AggregateType;
 import org.apache.doris.catalog.Column;
-import org.apache.doris.catalog.Index;
+import org.apache.doris.catalog.MaterializedIndex;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.nereids.rules.Rule;
 import org.apache.doris.nereids.rules.RuleType;
@@ -88,9 +88,10 @@ public class SelectBitmapMv extends OneRewriteRuleFactory {
             } else {
                 System.out.println("mv column is not null");
                 // new scan
-                List<Long> indexIds = table.getIndexes().stream()
-                        .filter(index -> index.getIndexId() != table.getBaseIndexId())
-                        .map(Index::getIndexId)
+                List<Long> indexIds = table.getVisibleIndex()
+                        .stream()
+                        .filter(index -> index.getId() != table.getBaseIndexId())
+                        .map(MaterializedIndex::getId)
                         .collect(Collectors.toList());
                 LogicalOlapScan newScan = scan.withMaterializedIndexSelected(PreAggStatus.on(), indexIds);
 
