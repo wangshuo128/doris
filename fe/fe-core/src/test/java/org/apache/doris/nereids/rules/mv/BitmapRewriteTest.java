@@ -55,27 +55,42 @@ class BitmapRewriteTest extends TestWithFeService {
                 + "\"disable_auto_compaction\" = \"false\"\n"
                 + ")");
 
-        createTable("CREATE TABLE `t1` (\n"
-                + "  k1 int,\n"
-                + "  k2 int,\n"
-                + "  k3 int,\n"
-                + "  k4 int,\n"
+        // createTable("CREATE TABLE `t1` (\n"
+        //         + "  k1 int,\n"
+        //         + "  k2 int,\n"
+        //         + "  k3 int,\n"
+        //         + "  k4 int,\n"
+        //         + "  v1 int\n"
+        //         + ") ENGINE=OLAP\n"
+        //         + "COMMENT \"OLAP\"\n"
+        //         + "DISTRIBUTED BY HASH(k1) BUCKETS 3\n"
+        //         + "PROPERTIES (\n"
+        //         + "\"replication_allocation\" = \"tag.location.default: 1\",\n"
+        //         + "\"in_memory\" = \"false\",\n"
+        //         + "\"storage_format\" = \"V2\",\n"
+        //         + "\"disable_auto_compaction\" = \"false\"\n"
+        //         + ")");
+        createTable("create table t1(\n"
+                + "  k1 int, \n"
+                + "  k2 int, \n"
                 + "  v1 int\n"
-                + ") ENGINE=OLAP\n"
-                + "COMMENT \"OLAP\"\n"
+                + ")ENGINE=OLAP \n"
                 + "DISTRIBUTED BY HASH(k1) BUCKETS 3\n"
                 + "PROPERTIES (\n"
                 + "\"replication_allocation\" = \"tag.location.default: 1\",\n"
                 + "\"in_memory\" = \"false\",\n"
                 + "\"storage_format\" = \"V2\",\n"
                 + "\"disable_auto_compaction\" = \"false\"\n"
-                + ")");
+                + ");");
     }
 
     @Test
     public void useMv() throws Exception {
-        createMv("create materialized view mv1 as "
-                + "select k1, bitmap_union(to_bitmap(v1)) from t1 group by k1");
+        // createMv("create materialized view mv1 as "
+        //         + "select k1, bitmap_union(to_bitmap(v1)) from t1 group by k1");
+        createMv("\n"
+                + "create materialized view mv1 as \n"
+                + "  select k1, bitmap_union(to_bitmap(v1)) from t1 group by k1;");
         PlanChecker.from(connectContext)
                 .checkPlannerResult("select k1, count(distinct v1) from t1 group by k1", planner -> {
                     List<ScanNode> scans = planner.getScanNodes();
