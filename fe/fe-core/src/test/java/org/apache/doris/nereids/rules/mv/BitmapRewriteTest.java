@@ -98,16 +98,16 @@ class BitmapRewriteTest extends TestWithFeService {
         System.out.println("======\n\n\n");
         System.out.println(getSQLPlanOrErrorMsg("select k1, count(distinct v1) from t1 group by k1"));
 
-        // PlanChecker.from(connectContext)
-        //         .checkPlannerResult("select k1, count(distinct v1) from t1 group by k1", planner -> {
-        //             List<ScanNode> scans = planner.getScanNodes();
-        //             Assertions.assertEquals(1, scans.size());
-        //             ScanNode scanNode = scans.get(0);
-        //             Assertions.assertTrue(scanNode instanceof OlapScanNode);
-        //             OlapScanNode olapScan = (OlapScanNode) scanNode;
-        //             String indexName = olapScan.getSelectedIndexName();
-        //             System.out.println("index name: " + indexName);
-        //         });
+        PlanChecker.from(connectContext)
+                .checkPlannerResult("select k1, count(distinct v1) from t1 group by k1", planner -> {
+                    List<ScanNode> scans = planner.getScanNodes();
+                    Assertions.assertEquals(1, scans.size());
+                    ScanNode scanNode = scans.get(0);
+                    Assertions.assertTrue(scanNode instanceof OlapScanNode);
+                    OlapScanNode olapScan = (OlapScanNode) scanNode;
+                    String indexName = olapScan.getSelectedIndexName();
+                    System.out.println("index name: " + indexName);
+                });
     }
 
     @Test
