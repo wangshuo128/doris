@@ -179,7 +179,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                 LogicalProject<LogicalOlapScan> newProject = new LogicalProject<>(
                                         newProjectList,
                                         scan.withMaterializedIndexSelected(result.preAggStatus, result.indexId));
-                                return new LogicalAggregate<>(
+                                LogicalAggregate<LogicalProject<LogicalOlapScan>> resultAgg = new LogicalAggregate<>(
                                         agg.getGroupByExpressions(),
                                         replaceAggOutput(agg, Optional.of(project), result.aggFuncMap),
                                         agg.isDisassembled(),
@@ -189,6 +189,8 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                         agg.getSourceRepeat(),
                                         newProject
                                 );
+                                System.out.println("result: " + resultAgg.treeString());
+                                return resultAgg;
                             }
                         }).toRule(RuleType.MATERIALIZED_INDEX_AGG_PROJECT_SCAN),
 
@@ -304,6 +306,8 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                         .stream()
                         .collect(Collectors.groupingBy(index -> index.getId() == table.getBaseIndexId()));
 
+                System.out.println("agg funcs: " + aggregateFunctions);
+
                 // Duplicate-keys table could use base index and indexes that pre-aggregation status is on.
                 Stream<MaterializedIndex> checkPreAggResult = Stream.concat(
                         indexesGroupByIsBaseOrNot.get(true).stream(),
@@ -340,6 +344,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                 Optional<AggRewriteResult> rewriteResultOpt = couldRewrite.stream()
                         .filter(aggRewriteResult -> aggRewriteResult.index.getId() == selectIndexId)
                         .findAny();
+                System.out.println("sorted index ids: " + sortedIndexId + ", select index id: " + selectIndexId);
                 // Pre-aggregation is set to `on` by default for duplicate-keys table.
                 return new SelectResult(PreAggStatus.on(), selectIndexId,
                         rewriteResultOpt.map(r -> r.slotMap).orElse(ImmutableMap.of()),

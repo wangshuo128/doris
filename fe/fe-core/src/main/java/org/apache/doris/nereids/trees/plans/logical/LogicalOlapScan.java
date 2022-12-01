@@ -89,6 +89,8 @@ public class LogicalOlapScan extends LogicalRelation implements CatalogRelation 
         this.tabletPruned = tabletPruned;
         this.selectedIndexId = selectedIndexId <= 0 ? getTable().getBaseIndexId() : selectedIndexId;
         this.indexSelected = indexSelected;
+        System.out.println(
+                "init scan, this.selectedIndexId=" + this.selectedIndexId + ", this.indexSelected=" + indexSelected);
         this.preAggStatus = preAggStatus;
     }
 
@@ -111,7 +113,8 @@ public class LogicalOlapScan extends LogicalRelation implements CatalogRelation 
                 "qualified", qualifiedName(),
                 "output", getOutput(),
                 "selectedIndexId", selectedIndexId,
-                "preAgg", preAggStatus
+                "preAgg", preAggStatus,
+                "indexSelected", indexSelected
         );
     }
 
@@ -123,14 +126,21 @@ public class LogicalOlapScan extends LogicalRelation implements CatalogRelation 
         if (o == null || getClass() != o.getClass() || !super.equals(o)) {
             return false;
         }
-        return Objects.equals(selectedPartitionIds, ((LogicalOlapScan) o).selectedPartitionIds)
+        return Objects.equals(id, ((LogicalOlapScan) o).id)
+                && Objects.equals(selectedPartitionIds, ((LogicalOlapScan) o).selectedPartitionIds)
+                && Objects.equals(partitionPruned, ((LogicalOlapScan) o).partitionPruned)
                 && Objects.equals(selectedIndexId, ((LogicalOlapScan) o).selectedIndexId)
-                && Objects.equals(selectedTabletId, ((LogicalOlapScan) o).selectedTabletId);
+                && Objects.equals(indexSelected, ((LogicalOlapScan) o).indexSelected)
+                && Objects.equals(selectedTabletId, ((LogicalOlapScan) o).selectedTabletId)
+                && Objects.equals(tabletPruned, ((LogicalOlapScan) o).tabletPruned);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, selectedPartitionIds, selectedIndexId, selectedTabletId);
+        return Objects.hash(id,
+                selectedPartitionIds, partitionPruned,
+                selectedIndexId, indexSelected,
+                selectedTabletId, tabletPruned);
     }
 
     @Override
@@ -156,7 +166,7 @@ public class LogicalOlapScan extends LogicalRelation implements CatalogRelation 
     public LogicalOlapScan withMaterializedIndexSelected(PreAggStatus preAgg, long indexId) {
         return new LogicalOlapScan(id, table, qualifier, Optional.empty(), Optional.of(getLogicalProperties()),
                 selectedPartitionIds, partitionPruned, selectedTabletId, tabletPruned,
-                selectedIndexId, true, preAgg);
+                indexId, true, preAgg);
     }
 
     public LogicalOlapScan withSelectedTabletIds(ImmutableList<Long> selectedTabletIds) {

@@ -98,9 +98,12 @@ class BitmapRewriteTest extends TestWithFeService {
         // System.out.println("======\n\n\n");
         // System.out.println(getSQLPlanOrErrorMsg("select k2, count(distinct v1) from t1 group by k2"));
 
+        // String sql1 = "select k1, count(distinct v1) from t1 group by k1";
+        // String sql2 = "select k2, count(distinct v1) from t1 group by k2";
+        String sql3 = "select count(distinct v1) from t1";
         System.out.println("======\n\n\n");
         PlanChecker.from(connectContext)
-                .checkPlannerResult("select k2, count(distinct v1) from t1 group by k2", planner -> {
+                .checkPlannerResult(sql3, planner -> {
                     List<ScanNode> scans = planner.getScanNodes();
                     Assertions.assertEquals(1, scans.size());
                     ScanNode scanNode = scans.get(0);
