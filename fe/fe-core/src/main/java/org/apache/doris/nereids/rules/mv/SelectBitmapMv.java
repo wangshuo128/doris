@@ -17,109 +17,82 @@
 
 package org.apache.doris.nereids.rules.mv;
 
-import org.apache.doris.analysis.CreateMaterializedViewStmt;
-import org.apache.doris.catalog.AggregateType;
-import org.apache.doris.catalog.Column;
-import org.apache.doris.catalog.MaterializedIndex;
-import org.apache.doris.catalog.OlapTable;
-import org.apache.doris.nereids.rules.Rule;
-import org.apache.doris.nereids.rules.RuleType;
-import org.apache.doris.nereids.rules.rewrite.OneRewriteRuleFactory;
-import org.apache.doris.nereids.trees.expressions.Expression;
-import org.apache.doris.nereids.trees.expressions.NamedExpression;
-import org.apache.doris.nereids.trees.expressions.Slot;
-import org.apache.doris.nereids.trees.expressions.SlotReference;
-import org.apache.doris.nereids.trees.expressions.functions.agg.AggregateFunction;
-import org.apache.doris.nereids.trees.expressions.functions.agg.BitmapUnionCount;
-import org.apache.doris.nereids.trees.expressions.functions.agg.Count;
-import org.apache.doris.nereids.trees.plans.PreAggStatus;
-import org.apache.doris.nereids.trees.plans.logical.LogicalAggregate;
-import org.apache.doris.nereids.trees.plans.logical.LogicalOlapScan;
-import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
-import org.apache.doris.nereids.util.ExpressionUtils;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 /**
  * todo: xxx
  */
-public class SelectBitmapMv extends OneRewriteRuleFactory {
-
-    @Override
-    public Rule build() {
-        return logicalAggregate(logicalProject(logicalOlapScan())).then(agg -> {
-            LogicalProject<LogicalOlapScan> project = agg.child();
-            LogicalOlapScan scan = project.child();
-            OlapTable table = scan.getTable();
-            List<Count> counts = agg.getOutputExpressions()
-                    .stream()
-                    .flatMap(e -> e.<Set<AggregateFunction>>collect(AggregateFunction.class::isInstance).stream())
-                    .filter(aggFun -> {
-                        if (aggFun instanceof Count) {
-                            Count count = (Count) aggFun;
-                            return count.isDistinct();
-                        } else {
-                            return false;
-                        }
-                    })
-                    .map(Count.class::cast)
-                    .collect(Collectors.toList());
-
-            System.out.println("counts size is " + counts.size());
-            if (counts.size() != 1) {
-                return agg;
-            }
-
-            Count count = counts.get(0);
-            Slot countChild = (SlotReference) count.child(0);
-            String childName = countChild.getName();
-            String mvColumnName = CreateMaterializedViewStmt
-                    .mvColumnBuilder(AggregateType.BITMAP_UNION.name().toLowerCase(), childName);
-
-            Column mvColumn = table.getVisibleColumn(mvColumnName);
-            if (mvColumn == null) {
-                System.out.println("mv column is null");
-                return agg;
-            } else {
-                System.out.println("mv column is not null");
-                // new scan
-                List<Long> indexIds = table.getVisibleIndex()
-                        .stream()
-                        .filter(index -> index.getId() != table.getBaseIndexId())
-                        .map(MaterializedIndex::getId)
-                        .collect(Collectors.toList());
-                LogicalOlapScan newScan = scan.withMaterializedIndexSelected(PreAggStatus.on(), indexIds);
-
-                // new project
-                Slot slot = scan.getOutput()
-                        .stream()
-                        .filter(s -> s.getName().equals(mvColumnName))
-                        .findFirst().get();
-                BitmapUnionCount bitmapUnionCount = new BitmapUnionCount(slot);
-                ImmutableMap<Expression, Expression> replaceMap = ImmutableMap.of(countChild, slot);
-                ImmutableList<NamedExpression> newProjects = project.getProjects()
-                        .stream()
-                        .map(expr -> ExpressionUtils.replace(expr, replaceMap))
-                        .map(NamedExpression.class::cast)
-                        .collect(ImmutableList.toImmutableList());
-                LogicalProject<LogicalOlapScan> newProject = new LogicalProject<>(newProjects, newScan);
-
-                // new agg
-                ImmutableMap<Expression, Expression> aggReplaceMap = ImmutableMap.of(count, bitmapUnionCount);
-                List<NamedExpression> newAggOutput = agg.getOutputExpressions()
-                        .stream()
-                        .map(expr -> ExpressionUtils.replace(expr, aggReplaceMap))
-                        .map(NamedExpression.class::cast)
-                        .collect(Collectors.toList());
-
-                return new LogicalAggregate<>(agg.getGroupByExpressions(), newAggOutput, newProject);
-            }
-
-        }).toRule(RuleType.MV_BITMAP);
-    }
+public class SelectBitmapMv{
+    //
+    // @Override
+    // public Rule build() {
+    //     return logicalAggregate(logicalProject(logicalOlapScan())).then(agg -> {
+    //         LogicalProject<LogicalOlapScan> project = agg.child();
+    //         LogicalOlapScan scan = project.child();
+    //         OlapTable table = scan.getTable();
+    //         List<Count> counts = agg.getOutputExpressions()
+    //                 .stream()
+    //                 .flatMap(e -> e.<Set<AggregateFunction>>collect(AggregateFunction.class::isInstance).stream())
+    //                 .filter(aggFun -> {
+    //                     if (aggFun instanceof Count) {
+    //                         Count count = (Count) aggFun;
+    //                         return count.isDistinct();
+    //                     } else {
+    //                         return false;
+    //                     }
+    //                 })
+    //                 .map(Count.class::cast)
+    //                 .collect(Collectors.toList());
+    //
+    //         System.out.println("counts size is " + counts.size());
+    //         if (counts.size() != 1) {
+    //             return agg;
+    //         }
+    //
+    //         Count count = counts.get(0);
+    //         Slot countChild = (SlotReference) count.child(0);
+    //         String childName = countChild.getName();
+    //         String mvColumnName = CreateMaterializedViewStmt
+    //                 .mvColumnBuilder(AggregateType.BITMAP_UNION.name().toLowerCase(), childName);
+    //
+    //         Column mvColumn = table.getVisibleColumn(mvColumnName);
+    //         if (mvColumn == null) {
+    //             System.out.println("mv column is null");
+    //             return agg;
+    //         } else {
+    //             System.out.println("mv column is not null");
+    //             // new scan
+    //             List<Long> indexIds = table.getVisibleIndex()
+    //                     .stream()
+    //                     .filter(index -> index.getId() != table.getBaseIndexId())
+    //                     .map(MaterializedIndex::getId)
+    //                     .collect(Collectors.toList());
+    //             // LogicalOlapScan newScan = scan.withMaterializedIndexSelected(PreAggStatus.on(), indexIds);
+    //
+    //             // new project
+    //             Slot slot = scan.getOutput()
+    //                     .stream()
+    //                     .filter(s -> s.getName().equals(mvColumnName))
+    //                     .findFirst().get();
+    //             BitmapUnionCount bitmapUnionCount = new BitmapUnionCount(slot);
+    //             ImmutableMap<Expression, Expression> replaceMap = ImmutableMap.of(countChild, slot);
+    //             ImmutableList<NamedExpression> newProjects = project.getProjects()
+    //                     .stream()
+    //                     .map(expr -> ExpressionUtils.replace(expr, replaceMap))
+    //                     .map(NamedExpression.class::cast)
+    //                     .collect(ImmutableList.toImmutableList());
+    //             // LogicalProject<LogicalOlapScan> newProject = new LogicalProject<>(newProjects, newScan);
+    //
+    //             // new agg
+    //             ImmutableMap<Expression, Expression> aggReplaceMap = ImmutableMap.of(count, bitmapUnionCount);
+    //             List<NamedExpression> newAggOutput = agg.getOutputExpressions()
+    //                     .stream()
+    //                     .map(expr -> ExpressionUtils.replace(expr, aggReplaceMap))
+    //                     .map(NamedExpression.class::cast)
+    //                     .collect(Collectors.toList());
+    //
+    //             // return new LogicalAggregate<>(agg.getGroupByExpressions(), newAggOutput, newProject);
+    //             return null;
+    //         }
+    //
+    //     }).toRule(RuleType.MV_BITMAP);
+    // }
 }

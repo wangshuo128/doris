@@ -17,6 +17,11 @@
 
 package org.apache.doris.nereids.trees.plans;
 
+import org.apache.doris.nereids.trees.expressions.Expression;
+
+import com.google.common.collect.ImmutableMap;
+
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -30,10 +35,19 @@ public class PreAggStatus {
     private static final PreAggStatus PRE_AGG_ON = new PreAggStatus(Status.ON, "");
     private final Status status;
     private final String offReason;
+    private final Map<Expression, Expression> slotReplaceMap;
+    private final Map<Expression, Expression> aggReplaceMap;
 
-    private PreAggStatus(Status status, String offReason) {
+    public PreAggStatus(Status status, String offReason, Map<Expression, Expression> slotReplaceMap,
+            Map<Expression, Expression> aggReplaceMap) {
         this.status = status;
         this.offReason = offReason;
+        this.slotReplaceMap = slotReplaceMap;
+        this.aggReplaceMap = aggReplaceMap;
+    }
+
+    private PreAggStatus(Status status, String offReason) {
+        this(status, offReason, ImmutableMap.of(), ImmutableMap.of());
     }
 
     public boolean isOn() {
@@ -58,6 +72,12 @@ public class PreAggStatus {
 
     public static PreAggStatus on() {
         return PRE_AGG_ON;
+    }
+
+    public static PreAggStatus on(
+            Map<Expression, Expression> slotReplaceMap,
+            Map<Expression, Expression> aggReplaceMap) {
+        return new PreAggStatus(Status.ON, "", slotReplaceMap, aggReplaceMap);
     }
 
     public static PreAggStatus off(String reason) {

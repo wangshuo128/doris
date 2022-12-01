@@ -61,17 +61,10 @@ public abstract class AbstractSelectMaterializedIndexRule {
         }
     }
 
-    /**
-     * 1. indexes have all the required columns.
-     * 2. find matching key prefix most.
-     * 3. sort by row count, column count and index id.
-     */
-    protected List<Long> filterAndOrder(
-            Stream<MaterializedIndex> candidates,
+    protected boolean containAllRequiredColumns(
+            MaterializedIndex index,
             LogicalOlapScan scan,
-            Set<Slot> requiredScanOutput,
-            List<Expression> predicates) {
-
+            Set<Slot> requiredScanOutput) {
         OlapTable table = scan.getTable();
         // Scan slot exprId -> slot name
         Map<ExprId, String> exprIdToName = scan.getOutput()
@@ -84,18 +77,46 @@ public abstract class AbstractSelectMaterializedIndexRule {
                 .map(slot -> exprIdToName.get(slot.getExprId()))
                 .collect(Collectors.toSet());
 
-        // 1. filter index contains all the required columns by column name.
-        List<MaterializedIndex> containAllRequiredColumns = candidates
-                .filter(index -> table.getSchemaByIndexId(index.getId(), true)
-                        .stream()
-                        .map(Column::getName)
-                        .collect(Collectors.toSet())
-                        .containsAll(requiredColumnNames)
-                ).collect(Collectors.toList());
+        return table.getSchemaByIndexId(index.getId(), true).stream()
+                .map(Column::getName)
+                .collect(Collectors.toSet())
+                .containsAll(requiredColumnNames);
+    }
+
+    /**
+     * 1. find matching key prefix most.
+     * 2. sort by row count, column count and index id.
+     */
+    protected List<Long> filterAndOrder(
+            Stream<MaterializedIndex> candidates,
+            LogicalOlapScan scan,
+            List<Expression> predicates) {
+
+        OlapTable table = scan.getTable();
+        // Scan slot exprId -> slot name
+        Map<ExprId, String> exprIdToName = scan.getOutput()
+                .stream()
+                .collect(Collectors.toMap(NamedExpression::getExprId, NamedExpression::getName));
+
+        // // get required column names in metadata.
+        // Set<String> requiredColumnNames = requiredScanOutput
+        //         .stream()
+        //         .map(slot -> exprIdToName.get(slot.getExprId()))
+        //         .collect(Collectors.toSet());
+        //
+        // // 1. filter index contains all the required columns by column name.
+        // List<MaterializedIndex> containAllRequiredColumns = candidates
+        //         .filter(index -> table.getSchemaByIndexId(index.getId(), true)
+        //                 .stream()
+        //                 .map(Column::getName)
+        //                 .collect(Collectors.toSet())
+        //                 .containsAll(requiredColumnNames)
+        //         ).collect(Collectors.toList());
 
         // 2. find matching key prefix most.
-        List<MaterializedIndex> matchingKeyPrefixMost = matchPrefixMost(scan, containAllRequiredColumns, predicates,
-                exprIdToName);
+        // todo: fix stream collect
+        List<MaterializedIndex> matchingKeyPrefixMost = matchPrefixMost(scan, candidates.collect(Collectors.toList()),
+                predicates, exprIdToName);
 
         List<Long> partitionIds = scan.getSelectedPartitionIds();
         // 3. sort by row count, column count and index id.

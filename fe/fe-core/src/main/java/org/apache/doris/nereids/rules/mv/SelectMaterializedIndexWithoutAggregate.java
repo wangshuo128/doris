@@ -128,18 +128,16 @@ public class SelectMaterializedIndexWithoutAggregate extends AbstractSelectMater
                 PreAggStatus preAgg = PreAggStatus.off("No aggregate on scan.");
                 if (candidates.size() == 1) {
                     // `candidates` only have base index.
-                    return scan.withMaterializedIndexSelected(preAgg, ImmutableList.of(baseIndexId));
+                    return scan.withMaterializedIndexSelected(preAgg, baseIndexId);
                 } else {
                     return scan.withMaterializedIndexSelected(preAgg,
-                            filterAndOrder(candidates.stream(), scan, requiredScanOutputSupplier.get(),
-                                    predicatesSupplier.get()));
+                            filterAndOrder(candidates.stream(), scan, predicatesSupplier.get()).get(0));
                 }
             case DUP_KEYS:
                 // Set pre-aggregation to `on` to keep consistency with legacy logic.
                 return scan.withMaterializedIndexSelected(PreAggStatus.on(),
                         filterAndOrder(scan.getTable().getVisibleIndex().stream(), scan,
-                                requiredScanOutputSupplier.get(),
-                                predicatesSupplier.get()));
+                                predicatesSupplier.get()).get(0));
             default:
                 throw new RuntimeException("Not supported keys type: " + scan.getTable().getKeysType());
         }
