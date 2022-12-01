@@ -772,7 +772,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
             newAggFuncMap.put((AggregateFunction) ExpressionUtils.replace(k, slotMap), v);
         });
 
-        // replace agg output: count(distinct v) as cnt -> bitmap_union_count(mv_bitmap_union_v1) as cnt.
+        // replace agg output:  itcount(distinct v) as cnt -> bitmap_union_count(mv_bitmap_union_v1) as cnt.
         return agg.getOutputExpressions().stream()
                 .map(expr -> (NamedExpression) ExpressionUtils.replace(expr, newAggFuncMap))
                 .collect(ImmutableList.toImmutableList());
