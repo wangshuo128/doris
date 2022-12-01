@@ -24,6 +24,8 @@ import org.apache.doris.catalog.Table;
 import org.apache.doris.nereids.exceptions.AnalysisException;
 import org.apache.doris.nereids.memo.GroupExpression;
 import org.apache.doris.nereids.properties.LogicalProperties;
+import org.apache.doris.nereids.trees.expressions.Slot;
+import org.apache.doris.nereids.trees.expressions.SlotReference;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.PlanType;
 import org.apache.doris.nereids.trees.plans.PreAggStatus;
@@ -40,6 +42,7 @@ import org.apache.commons.collections.CollectionUtils;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Logical OlapScan.
@@ -201,5 +204,16 @@ public class LogicalOlapScan extends LogicalRelation implements CatalogRelation 
     public Optional<String> getSelectedMaterializedIndexName() {
         return indexSelected ? Optional.ofNullable(((OlapTable) table).getIndexNameById(selectedIndexId))
                 : Optional.empty();
+    }
+
+    @Override
+    public List<Slot> computeOutput() {
+        OlapTable olapTable = (OlapTable) table;
+        return olapTable.getVisibleIndex()
+                .stream()
+                .flatMap(index -> olapTable.getSchemaByIndexId(index.getId()).stream())
+                .distinct()
+                .map(col -> SlotReference.fromColumn(col, qualified()))
+                .collect(ImmutableList.toImmutableList());
     }
 }

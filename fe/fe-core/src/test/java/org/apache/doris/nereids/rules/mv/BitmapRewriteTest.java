@@ -25,6 +25,12 @@ import org.junit.jupiter.api.Test;
 
 class BitmapRewriteTest extends TestWithFeService {
     @Override
+    protected void beforeCreatingConnectContext() throws Exception {
+        FeConstants.default_scheduler_interval_millisecond = 10;
+        FeConstants.runningUnitTest = true;
+    }
+
+    @Override
     protected void runBeforeAll() throws Exception {
         FeConstants.runningUnitTest = true;
         createDatabase("test");
@@ -46,6 +52,9 @@ class BitmapRewriteTest extends TestWithFeService {
 
         createTable("CREATE TABLE `t1` (\n"
                 + "  k1 int,\n"
+                + "  k2 int,\n"
+                + "  k3 int,\n"
+                + "  k4 int,\n"
                 + "  v1 int\n"
                 + ") ENGINE=OLAP\n"
                 + "COMMENT \"OLAP\"\n"
@@ -59,13 +68,34 @@ class BitmapRewriteTest extends TestWithFeService {
     }
 
     @Test
+    public void useMv() throws Exception {
+        createMv("create materialized view mv1 as "
+                + "select k1, bitmap_union(to_bitmap(v1)) from t1 group by k1");
+        PlanChecker.from(connectContext)
+                .checkPlannerResult("select k1, count(distinct v1) from t1 group by k1");
+    }
+
+    @Test
+    public void mvIndexBitmapMissingKey() throws Exception {
+        createMv("create materialized view mv1 as "
+                + "select k2, bitmap_union(to_bitmap(v1)) from t1 group by k2");
+
+        String explain = getSQLPlanOrErrorMsg("select k1, count(distinct v1) from t1 group by k1");
+        System.out.println(explain);
+    }
+
+    @Test
     public void test() throws Exception {
         String explain = getSQLPlanOrErrorMsg("select k1, count(distinct v1) from t group by k1");
         System.out.println(explain);
     }
 
+    // physical plan:
+    // PhysicalProject ( projects=[k1#0, count(distinct v1)#3 AS `count(DISTINCT v1)`#2], stats=(rows=1, isReduced=true, width=1, penalty=0.0) )
+    //         +--PhysicalAggregate ( phase=LOCAL, outputExpr=[k1#0, count(distinct v1#1) AS `count(distinct v1)`#3], groupByExpr=[k1#0], partitionExpr=[k1#0], stats=(rows=1, isReduced=true, width=1, penalty=0.0) )
+    //         +--PhysicalOlapScan ( qualified=default_cluster:test.t, output=[k1#0, v1#1], stats=(rows=0, isReduced=false, width=1, penalty=0.0) )
     @Test
-    public void nereidsTest() {
+    public void countDistinctTest() {
         PlanChecker.from(connectContext)
                 .checkPlannerResult("select k1, count(distinct v1) from t group by k1");
     }

@@ -24,6 +24,7 @@ import org.apache.doris.nereids.rules.analysis.CheckAfterRewrite;
 import org.apache.doris.nereids.rules.analysis.LogicalSubQueryAliasToLogicalProject;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionNormalization;
 import org.apache.doris.nereids.rules.expression.rewrite.ExpressionOptimization;
+import org.apache.doris.nereids.rules.mv.SelectBitmapMv;
 import org.apache.doris.nereids.rules.mv.SelectMaterializedIndexWithAggregate;
 import org.apache.doris.nereids.rules.mv.SelectMaterializedIndexWithoutAggregate;
 import org.apache.doris.nereids.rules.rewrite.logical.ColumnPruning;
@@ -87,8 +88,9 @@ public class NereidsRewriteJobExecutor extends BatchRulesJob {
                 .add(topDownBatch(ImmutableList.of(new EliminateLimit())))
                 .add(topDownBatch(ImmutableList.of(new EliminateFilter())))
                 .add(topDownBatch(ImmutableList.of(new PruneOlapScanPartition())))
-                .add(topDownBatch(ImmutableList.of(new SelectMaterializedIndexWithAggregate())))
-                .add(topDownBatch(ImmutableList.of(new SelectMaterializedIndexWithoutAggregate())))
+                .add(topDownBatch(ImmutableList.of(new SelectBitmapMv())))
+                // .add(topDownBatch(ImmutableList.of(new SelectMaterializedIndexWithAggregate())))
+                // .add(topDownBatch(ImmutableList.of(new SelectMaterializedIndexWithoutAggregate())))
                 .add(topDownBatch(ImmutableList.of(new PruneOlapScanTablet())))
                 // we need to execute this rule at the end of rewrite
                 // to avoid two consecutive same project appear when we do optimization.

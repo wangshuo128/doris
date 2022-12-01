@@ -139,6 +139,11 @@ public enum RuleType {
     OLAP_SCAN_PARTITION_PRUNE(RuleTypeClass.REWRITE),
     OLAP_SCAN_TABLET_PRUNE(RuleTypeClass.REWRITE),
     EXTRACT_SINGLE_TABLE_EXPRESSION_FROM_DISJUNCTION(RuleTypeClass.REWRITE),
+
+    COUNT_DISTINCT_REWRITE(RuleTypeClass.REWRITE),
+
+    MV_BITMAP(RuleTypeClass.REWRITE),
+
     REWRITE_SENTINEL(RuleTypeClass.REWRITE),
 
     // limit push down

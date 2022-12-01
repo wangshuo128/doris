@@ -176,6 +176,8 @@ public class NereidsPlanner extends Planner {
 
         PhysicalPlan physicalPlan = chooseBestPlan(getRoot(), PhysicalProperties.ANY);
 
+        System.out.println("physical plan:\n" + physicalPlan.treeString());
+
         // post-process physical plan out of memo, just for future use.
         physicalPlan = postProcess(physicalPlan);
         if (explainLevel == ExplainLevel.OPTIMIZED_PLAN || explainLevel == ExplainLevel.ALL_PLAN) {

@@ -437,6 +437,10 @@ public abstract class DataType implements AbstractDataType {
         return this instanceof PrimitiveType;
     }
 
+    public boolean isBitmap() {
+        return this instanceof BitmapType;
+    }
+
     public DataType promotion() {
         if (PROMOTION_MAP.containsKey(this.getClass())) {
             return PROMOTION_MAP.get(this.getClass()).get();
