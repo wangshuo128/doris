@@ -17,19 +17,10 @@
 
 package org.apache.doris.nereids.rules.rewrite.logical;
 
-import org.apache.doris.nereids.rules.Rule;
-import org.apache.doris.nereids.rules.RuleType;
-import org.apache.doris.nereids.rules.rewrite.OneRewriteRuleFactory;
 import org.apache.doris.nereids.trees.expressions.Expression;
-import org.apache.doris.nereids.trees.expressions.NamedExpression;
 import org.apache.doris.nereids.trees.expressions.functions.agg.BitmapUnionCount;
 import org.apache.doris.nereids.trees.expressions.functions.agg.Count;
 import org.apache.doris.nereids.trees.expressions.visitor.DefaultExpressionRewriter;
-import org.apache.doris.nereids.trees.plans.logical.LogicalAggregate;
-
-import com.google.common.collect.ImmutableList;
-
-import java.util.List;
 
 /**
  * Rewrite count distinct for bitmap and hll type.
@@ -37,22 +28,23 @@ import java.util.List;
  * count(distinct bitmap_col) -> bitmap_union_count(bitmap col)
  * count(distinct hll_col) ->
  */
-public class CountDistinctRewrite extends OneRewriteRuleFactory {
+public class CountDistinctRewrite {
+    // public class CountDistinctRewrite extends OneRewriteRuleFactory {
     private static final CountDistinctRewriter REWRITER = new CountDistinctRewriter();
 
-    @Override
-    public Rule build() {
-        return logicalAggregate().then(agg -> {
-            List<NamedExpression> output = agg.getOutputExpressions()
-                    .stream()
-                    .map(REWRITER::rewrite)
-                    .map(NamedExpression.class::cast)
-                    .collect(ImmutableList.toImmutableList());
-            return new LogicalAggregate<>(agg.getGroupByExpressions(), output,
-                    agg.isDisassembled(), agg.isNormalized(),
-                    agg.isFinalPhase(), agg.getAggPhase(), agg.child());
-        }).toRule(RuleType.COUNT_DISTINCT_REWRITE);
-    }
+    // @Override
+    // public Rule build() {
+    //     return logicalAggregate().then(agg -> {
+    //         List<NamedExpression> output = agg.getOutputExpressions()
+    //                 .stream()
+    //                 .map(REWRITER::rewrite)
+    //                 .map(NamedExpression.class::cast)
+    //                 .collect(ImmutableList.toImmutableList());
+    //         return new LogicalAggregate<>(agg.getGroupByExpressions(), output,
+    //                 agg.isDisassembled(), agg.isNormalized(),
+    //                 agg.isFinalPhase(), agg.getAggPhase(), agg.child());
+    //     }).toRule(RuleType.COUNT_DISTINCT_REWRITE);
+    // }
 
     private static class CountDistinctRewriter extends DefaultExpressionRewriter<Void> {
         public Expression rewrite(Expression expr) {

@@ -102,6 +102,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                 agg.isNormalized(),
                                 agg.isFinalPhase(),
                                 agg.getAggPhase(),
+                                agg.getSourceRepeat(),
                                 scan.withMaterializedIndexSelected(result.preAggStatus, result.indexId)
                         );
                     }
@@ -139,6 +140,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                         agg.isNormalized(),
                                         agg.isFinalPhase(),
                                         agg.getAggPhase(),
+                                        agg.getSourceRepeat(),
                                         filter.withChildren(
                                                 scan.withMaterializedIndexSelected(result.preAggStatus, result.indexId))
                                 );
@@ -184,6 +186,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                         agg.isNormalized(),
                                         agg.isFinalPhase(),
                                         agg.getAggPhase(),
+                                        agg.getSourceRepeat(),
                                         newProject
                                 );
                             }
@@ -226,6 +229,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                         agg.isNormalized(),
                                         agg.isFinalPhase(),
                                         agg.getAggPhase(),
+                                        agg.getSourceRepeat(),
                                         newProject
                                 );
                             }
