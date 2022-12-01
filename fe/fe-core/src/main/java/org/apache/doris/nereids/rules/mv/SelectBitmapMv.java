@@ -45,6 +45,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * todo: xxx
+ */
 public class SelectBitmapMv extends OneRewriteRuleFactory {
 
     @Override
