@@ -27,6 +27,7 @@ import org.apache.doris.nereids.annotation.Developing;
 import org.apache.doris.nereids.rules.Rule;
 import org.apache.doris.nereids.rules.RuleType;
 import org.apache.doris.nereids.rules.rewrite.RewriteRuleFactory;
+import org.apache.doris.nereids.trees.expressions.Alias;
 import org.apache.doris.nereids.trees.expressions.ExprId;
 import org.apache.doris.nereids.trees.expressions.Expression;
 import org.apache.doris.nereids.trees.expressions.NamedExpression;
@@ -96,7 +97,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                     } else {
                         return new LogicalAggregate<>(
                                 agg.getGroupByExpressions(),
-                                replaceAggOutput(agg, result.slotMap),
+                                replaceAggOutput(agg, Optional.empty(), result.aggFuncMap),
                                 agg.isDisassembled(),
                                 agg.isNormalized(),
                                 agg.isFinalPhase(),
@@ -133,7 +134,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                             } else {
                                 return new LogicalAggregate<>(
                                         agg.getGroupByExpressions(),
-                                        replaceAggOutput(agg, result.slotMap),
+                                        replaceAggOutput(agg, Optional.empty(), result.aggFuncMap),
                                         agg.isDisassembled(),
                                         agg.isNormalized(),
                                         agg.isFinalPhase(),
@@ -172,17 +173,13 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                         )
                                 );
                             } else {
-                                List<NamedExpression> oldProjectList = project.getProjects();
                                 List<NamedExpression> newProjectList = replaceProjectList(project, result.slotMap);
-                                Map<Slot, Slot> aggInputReplaceMap = getProjectOutputReplaceMap(oldProjectList,
-                                        newProjectList);
-
                                 LogicalProject<LogicalOlapScan> newProject = new LogicalProject<>(
                                         newProjectList,
                                         scan.withMaterializedIndexSelected(result.preAggStatus, result.indexId));
                                 return new LogicalAggregate<>(
                                         agg.getGroupByExpressions(),
-                                        replaceAggOutput(agg, aggInputReplaceMap),
+                                        replaceAggOutput(agg, Optional.of(project), result.aggFuncMap),
                                         agg.isDisassembled(),
                                         agg.isNormalized(),
                                         agg.isFinalPhase(),
@@ -216,10 +213,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                         scan.withMaterializedIndexSelected(result.preAggStatus, result.indexId)
                                 )));
                             } else {
-                                List<NamedExpression> oldProjectList = project.getProjects();
                                 List<NamedExpression> newProjectList = replaceProjectList(project, result.slotMap);
-                                Map<Slot, Slot> aggInputReplaceMap = getProjectOutputReplaceMap(oldProjectList,
-                                        newProjectList);
 
                                 LogicalProject<Plan> newProject = new LogicalProject<>(newProjectList,
                                         filter.withChildren(scan.withMaterializedIndexSelected(result.preAggStatus,
@@ -227,7 +221,7 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
 
                                 return new LogicalAggregate<>(
                                         agg.getGroupByExpressions(),
-                                        replaceAggOutput(agg, aggInputReplaceMap),
+                                        replaceAggOutput(agg, Optional.of(project), result.aggFuncMap),
                                         agg.isDisassembled(),
                                         agg.isNormalized(),
                                         agg.isFinalPhase(),
@@ -291,13 +285,14 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                         aggregateFunctions, groupingExprs);
                 if (preAggStatus.isOff()) {
                     // return early if pre agg status if off.
-                    return new SelectResult(preAggStatus, scan.getTable().getBaseIndexId(), ImmutableMap.of());
+                    return new SelectResult(preAggStatus, scan.getTable().getBaseIndexId(), ImmutableMap.of(),
+                            ImmutableMap.of());
                 } else {
                     List<Long> sortedIndexId = filterAndOrder(table.getVisibleIndex().stream(), scan, predicates);
                     return new SelectResult(preAggStatus,
                             CollectionUtils.isEmpty(sortedIndexId)
                                     ? scan.getTable().getBaseIndexId() : sortedIndexId.get(0),
-                            ImmutableMap.of());
+                            ImmutableMap.of(), ImmutableMap.of());
                 }
             }
             case DUP_KEYS: {
@@ -338,13 +333,13 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
 
                 long selectIndexId = CollectionUtils.isEmpty(sortedIndexId)
                         ? scan.getTable().getBaseIndexId() : sortedIndexId.get(0);
-                Map<Slot, Slot> slotMap = couldRewrite.stream()
+                Optional<AggRewriteResult> rewriteResultOpt = couldRewrite.stream()
                         .filter(aggRewriteResult -> aggRewriteResult.index.getId() == selectIndexId)
-                        .findAny()
-                        .map(aggRewriteResult -> aggRewriteResult.slotMap)
-                        .orElse(ImmutableMap.of());
+                        .findAny();
                 // Pre-aggregation is set to `on` by default for duplicate-keys table.
-                return new SelectResult(PreAggStatus.on(), selectIndexId, slotMap);
+                return new SelectResult(PreAggStatus.on(), selectIndexId,
+                        rewriteResultOpt.map(r -> r.slotMap).orElse(ImmutableMap.of()),
+                        rewriteResultOpt.map(r -> r.aggFuncMap).orElse(ImmutableMap.of()));
             }
             default:
                 throw new RuntimeException("Not supported keys type: " + table.getKeysType());
@@ -355,11 +350,14 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
         public final PreAggStatus preAggStatus;
         public final long indexId;
         public final Map<Slot, Slot> slotMap;
+        public final Map<AggregateFunction, AggregateFunction> aggFuncMap;
 
-        public SelectResult(PreAggStatus preAggStatus, long indexId, Map<Slot, Slot> slotMap) {
+        public SelectResult(PreAggStatus preAggStatus, long indexId, Map<Slot, Slot> slotMap,
+                Map<AggregateFunction, AggregateFunction> aggFuncMap) {
             this.preAggStatus = preAggStatus;
             this.indexId = indexId;
             this.slotMap = slotMap;
+            this.aggFuncMap = aggFuncMap;
         }
     }
 
@@ -618,7 +616,8 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
             List<AggregateFunction> aggregateFunctions,
             List<Expression> groupingExprs) {
         Map<Slot, Slot> slotMap = Maps.newHashMap();
-        RewriteContext context = new RewriteContext(new CheckContext(scan, index.getId()), slotMap);
+        Map<AggregateFunction, AggregateFunction> aggFuncMap = Maps.newHashMap();
+        RewriteContext context = new RewriteContext(new CheckContext(scan, index.getId()), slotMap, aggFuncMap);
         List<AggregateFunction> rewrittenAggFuncs = aggregateFunctions.stream()
                 .map(aggFunc -> (AggregateFunction) AggFuncRewriter.INSTANCE.rewrite(aggFunc, context))
                 .collect(ImmutableList.toImmutableList());
@@ -631,11 +630,12 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                 ImmutableSet<Slot> newRequiredSlots = requiredScanOutput.stream()
                         .map(slot -> (Slot) ExpressionUtils.replace(slot, slotMap))
                         .collect(ImmutableSet.toImmutableSet());
-                return new AggRewriteResult(index, true, newRequiredSlots, rewrittenAggFuncs, slotMap);
+                return new AggRewriteResult(index, true, newRequiredSlots, rewrittenAggFuncs, slotMap,
+                        aggFuncMap);
             }
         }
 
-        return new AggRewriteResult(index, false, null, null, null);
+        return new AggRewriteResult(index, false, null, null, null, null);
     }
 
     private static class AggRewriteResult {
@@ -644,18 +644,21 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
         public final Set<Slot> requiredScanOutput;
         public final List<AggregateFunction> aggFuncs;
         public final Map<Slot, Slot> slotMap;
+        public final Map<AggregateFunction, AggregateFunction> aggFuncMap;
 
         public AggRewriteResult(
                 MaterializedIndex index,
                 boolean success,
                 Set<Slot> requiredScanOutput,
                 List<AggregateFunction> aggFuncs,
-                Map<Slot, Slot> slotMap) {
+                Map<Slot, Slot> slotMap,
+                Map<AggregateFunction, AggregateFunction> aggFuncMap) {
             this.index = index;
             this.success = success;
             this.requiredScanOutput = requiredScanOutput;
             this.aggFuncs = aggFuncs;
             this.slotMap = slotMap;
+            this.aggFuncMap = aggFuncMap;
         }
     }
 
@@ -667,10 +670,13 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
     private static class RewriteContext {
         public final CheckContext checkContext;
         public final Map<Slot, Slot> slotMap;
+        public final Map<AggregateFunction, AggregateFunction> aggFuncMap;
 
-        public RewriteContext(CheckContext context, Map<Slot, Slot> slotMap) {
+        public RewriteContext(CheckContext context, Map<Slot, Slot> slotMap,
+                Map<AggregateFunction, AggregateFunction> aggFuncMap) {
             this.checkContext = context;
             this.slotMap = slotMap;
+            this.aggFuncMap = aggFuncMap;
         }
     }
 
@@ -702,7 +708,9 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
                                 .get();
 
                         context.slotMap.put(slotOpt.get(), bitmapUnionCountSlot);
-                        return new BitmapUnionCount(bitmapUnionCountSlot);
+                        BitmapUnionCount bitmapUnionCount = new BitmapUnionCount(bitmapUnionCountSlot);
+                        context.aggFuncMap.put(count, bitmapUnionCount);
+                        return bitmapUnionCount;
                     }
                 }
             }
@@ -710,9 +718,63 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
         }
     }
 
-    private List<NamedExpression> replaceAggOutput(LogicalAggregate<? extends Plan> agg, Map<Slot, Slot> slotMap) {
+    /**
+     * <pre>
+     * Original input SQL:
+     * select k1, count(distinct v) as cnt from (
+     *   select k1, v1 as v from t
+     * ) t group by k1
+     *
+     * We have materialized index for table t:
+     * mv_bitmap_union_v1 for column v1
+     *
+     * Before rewriting, the input plan is:
+     * Aggregate(count(distinct v) as cnt)
+     *   +--Project(alias(v1 as v))
+     *     +--Scan(v1)
+     *
+     * After rewriting, the plan should be:
+     * Aggregate(bitmap_union_count(v) as cnt)
+     *      +--Project(alias(mv_bitmap_union_v1 as v))
+     *          +--Scan(mv_bitmap_union_v1)
+     *
+     * agg function in aggregate node: count(distinct v) as cnt
+     * oldProject: v1 -> v
+     * aggFuncMap: count(distinct v1) -> bitmap_union_count(mv_bitmap_union_v1)
+     * </pre>
+     */
+    private List<NamedExpression> replaceAggOutput(
+            LogicalAggregate<? extends Plan> agg,
+            Optional<LogicalProject<? extends Plan>> oldProjectOpt,
+            Map<AggregateFunction, AggregateFunction> aggFuncMap) {
+
+        // oldProject: v1 -> v
+        // replace agg function in aggregate node.
+        // get the slot replace map from old project: v1 -> v
+        Map<Expression, Slot> slotMap = oldProjectOpt
+                .map(project -> project.getProjects()
+                        .stream()
+                        .filter(Alias.class::isInstance)
+                        .collect(
+                                Collectors.toMap(
+                                        // Avoid cast to alias, retrieving the first child expression.
+                                        alias -> alias.child(0),
+                                        NamedExpression::toSlot
+                                )
+                        ))
+                .orElse(ImmutableMap.of());
+
+        // we have the project map: v1 -> v
+        // aggFuncMap: count(distinct v1) -> bitmap_union_count(mv_bitmap_union_v1)
+        // new agg replace map: count(distinct v) -> bitmap_union_count(mv_bitmap_union_v1)
+        Map<AggregateFunction, AggregateFunction> newAggFuncMap = Maps.newHashMap();
+        aggFuncMap.forEach((k, v) -> {
+            newAggFuncMap.put((AggregateFunction) ExpressionUtils.replace(k, slotMap), v);
+        });
+
+        // replace agg output: count(distinct v) as cnt -> bitmap_union_count(mv_bitmap_union_v1) as cnt.
         return agg.getOutputExpressions().stream()
-                .map(expr -> (NamedExpression) ExpressionUtils.replace(expr, slotMap))
+                .map(expr -> (NamedExpression) ExpressionUtils.replace(expr, newAggFuncMap))
                 .collect(ImmutableList.toImmutableList());
     }
 
@@ -720,17 +782,5 @@ public class SelectMaterializedIndexWithAggregate extends AbstractSelectMaterial
         return project.getProjects().stream()
                 .map(expr -> (NamedExpression) ExpressionUtils.replace(expr, slotMap))
                 .collect(ImmutableList.toImmutableList());
-    }
-
-    private Map<Slot, Slot> getProjectOutputReplaceMap(
-            List<NamedExpression> oldProjectList,
-            List<NamedExpression> newProjectList) {
-        Map<Slot, Slot> slotMap = Maps.newHashMap();
-        for (int i = 0; i < oldProjectList.size(); i++) {
-            if (!oldProjectList.get(i).equals(newProjectList.get(i))) {
-                slotMap.put(oldProjectList.get(i).toSlot(), newProjectList.get(i).toSlot());
-            }
-        }
-        return slotMap;
     }
 }

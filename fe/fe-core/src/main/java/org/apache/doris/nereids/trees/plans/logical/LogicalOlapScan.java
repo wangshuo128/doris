@@ -88,11 +88,6 @@ public class LogicalOlapScan extends LogicalRelation implements CatalogRelation 
         this.partitionPruned = partitionPruned;
         this.tabletPruned = tabletPruned;
         this.selectedIndexId = selectedIndexId <= 0 ? getTable().getBaseIndexId() : selectedIndexId;
-        System.out.println("init scan, selectedIndexId=" + selectedIndexId
-                + ", this.selectedIndexId=" + this.selectedIndexId);
-        if (selectedIndexId == 10016) {
-            System.out.println("10016");
-        }
         this.indexSelected = indexSelected;
         this.preAggStatus = preAggStatus;
     }
