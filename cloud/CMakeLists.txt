@@ -251,6 +251,7 @@ message(STATUS "Compiler Flags: ${CMAKE_CXX_FLAGS}")
 # Thrift requires these two definitions for some types that we use
 add_definitions(-DHAVE_INTTYPES_H -DHAVE_NETINET_IN_H)
 
+
 # Set include dirs
 include_directories(
     ${SRC_DIR}/
@@ -298,16 +299,39 @@ set(COMMON_THIRDPARTY
     ali-sdk
 )
 
+
+message("build with libhdfs3")
+add_library(hdfs3 STATIC IMPORTED)
+set_target_properties(hdfs3 PROPERTIES IMPORTED_LOCATION ${THIRDPARTY_DIR}/lib/libhdfs3.a)
+
+set(COMMON_THIRDPARTY ${COMMON_THIRDPARTY} hdfs3)
+add_definitions(-DUSE_LIBHDFS3)
+
+set(KRB5_LIBS
+    krb5support
+    krb5
+    com_err
+    gssapi_krb5
+    k5crypto
+    xml2
+    lzma
+    idn
+    resolv
+    gsasl)
+
 set(DORIS_DEPENDENCIES
     ${DORIS_DEPENDENCIES}
     ${WL_START_GROUP}
     ${COMMON_THIRDPARTY}
+    ${KRB5_LIBS}
     ${WL_END_GROUP}
 )
 
 # set(DORIS_DEPENDENCIES ${DORIS_DEPENDENCIES} ${WL_END_GROUP})
 
 message(STATUS "DORIS_DEPENDENCIES is ${DORIS_DEPENDENCIES}")
+
+
 
 # Add all external dependencies. They should come after the project's libs.
 # static link gcc's lib
@@ -421,7 +445,8 @@ if (NOT EXISTS "${THIRDPARTY_SRC}/${FDB_LIB}")
 endif ()
 
 # Add fdb dependencies
-add_definitions(-DFDB_API_VERSION=710)
+#add_definitions(-DFDB_API_VERSION=710)
+add_definitions(-DFDB_API_VERSION=630)
 if (NOT EXISTS ${THIRDPARTY_DIR}/include/foundationdb)
     execute_process(COMMAND "md5sum" "${THIRDPARTY_SRC}/${FDB_LIB}"
                     RESULT_VARIABLE MD5SUM_RET_CODE

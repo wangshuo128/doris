@@ -2,6 +2,12 @@ set(LIBRARY_OUTPUT_PATH "${BUILD_DIR}/src/gen_cpp")
 
 set (GEN_CPP_DIR ${GENSRC_DIR}/gen_cpp)
 set(SRC_FILES
+    ${GEN_CPP_DIR}/Descriptors_types.cpp
+    ${GEN_CPP_DIR}/Exprs_types.cpp
+    ${GEN_CPP_DIR}/Opcodes_types.cpp
+    ${GEN_CPP_DIR}/Partitions_types.cpp
+    ${GEN_CPP_DIR}/PlanNodes_types.cpp
+    ${GEN_CPP_DIR}/Types_types.cpp
     ${GEN_CPP_DIR}/cloud.pb.cc
     ${GEN_CPP_DIR}/olap_file.pb.cc
     ${GEN_CPP_DIR}/types.pb.cc

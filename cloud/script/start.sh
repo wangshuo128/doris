@@ -67,6 +67,13 @@ fi
 
 chmod 550 "${DORIS_HOME}/lib/doris_cloud"
 
+## set libhdfs3 conf
+if [[ -f "${DORIS_HOME}/conf/hdfs-site.xml" ]]; then
+    export LIBHDFS3_CONF="${DORIS_HOME}/conf/hdfs-site.xml"
+fi
+
+echo "LIBHDFS3_CONF=${LIBHDFS3_CONF}"
+
 export JEMALLOC_CONF="percpu_arena:percpu,background_thread:true,metadata_thp:auto,muzzy_decay_ms:15000,dirty_decay_ms:15000,oversize_threshold:0,prof:true,prof_prefix:jeprof.out"
 
 mkdir -p "${DORIS_HOME}/log"

@@ -9,6 +9,10 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lfdb_c -L${THIRDPARTY_DIR
 
 set (SRC_LIST
     checker.cpp
+    err_utils.cpp
+    hdfs_accessor.cpp
+    hdfs_builder.cpp
+    hdfs_util.cpp
     recycler.cpp
     recycler_service.cpp
     s3_accessor.cpp

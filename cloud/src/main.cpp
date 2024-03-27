@@ -237,7 +237,6 @@ int main(int argc, char** argv) {
         LOG(WARNING) << "failed to create txn kv, invalid txnkv type";
         return 1;
     }
-    LOG(INFO) << "begin to init txn kv";
     int ret = txn_kv->init();
     if (ret != 0) {
         LOG(WARNING) << "failed to init txnkv, ret=" << ret;

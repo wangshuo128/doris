@@ -17,37 +17,30 @@
 
 #pragma once
 
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "obj_store_accesor.h"
 
-namespace Aws::S3 {
-class S3Client;
-} // namespace Aws::S3
+#include "recycler/hdfs.h"
+#include "recycler/path.h"
 
-namespace doris::cloud {
+namespace doris {
+class THdfsParams;
 
-struct S3Conf {
-    std::string ak;
-    std::string sk;
-    std::string endpoint;
-    std::string region;
-    std::string bucket;
-    std::string prefix;
-};
+namespace cloud {
+class HdfsHandler;
 
-class S3Accessor : public ObjStoreAccessor {
+class HdfsAccessor : public ObjStoreAccessor {
 public:
-    explicit S3Accessor(S3Conf conf);
-    ~S3Accessor() override;
+    static int create(const THdfsParams& hdfs_params, std::string fs_name, std::string id,
+                      std::shared_ptr<HdfsAccessor>* fs, std::string root_path = "");
 
-    const std::string& path() const override { return path_; }
+    // explicit HdfsAccessor(HdfsVaultInfo vault_info);
+    HdfsAccessor(const THdfsParams& hdfs_params, std::string fs_name, std::string id,
+                 std::string root_path);
+    ~HdfsAccessor() = default;
 
-    const std::shared_ptr<Aws::S3::S3Client>& s3_client() const { return s3_client_; }
+    const std::string& path() const override { return _root_path_str; }
 
-    const S3Conf& conf() const { return conf_; }
+    // const cloud::HdfsVaultInfo& vaultInfo() const { return vault_info_; }
 
     // returns 0 for success otherwise error
     int init() override;
@@ -82,14 +75,22 @@ public:
     int check_bucket_versioning() override;
 
 private:
-    std::string get_key(const std::string& relative_path) const;
-    // return empty string if the input key does not start with the prefix of S3 conf
-    std::string get_relative_path(const std::string& key) const;
+    Path absolute_path(const Path& path) {
+        if (path.is_absolute()) {
+            return path;
+        }
+        return _root_path / path;
+    }
 
-private:
-    std::shared_ptr<Aws::S3::S3Client> s3_client_;
-    S3Conf conf_;
-    std::string path_;
+    int exists(const Path& path, bool* res) const;
+
+    const THdfsParams& _hdfs_params;
+    std::string _fs_name;
+    std::string _id;
+    std::string _root_path_str;
+    Path _root_path;
+    HdfsHandler* _fs_handle = nullptr;
 };
 
-} // namespace doris::cloud
+} // namespace cloud
+} // namespace doris

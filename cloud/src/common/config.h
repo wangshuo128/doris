@@ -153,4 +153,9 @@ CONF_Bool(enable_retry_txn_conflict, "true");
 // The secondary package name of the MetaService.
 CONF_String(secondary_package_name, "");
 
+// Allow to specify kerberos credentials cache path.
+CONF_String(kerberos_ccache_path, "");
+// set krb5.conf path, use "/etc/krb5.conf" by default
+CONF_String(kerberos_krb5_conf_path, "/etc/krb5.conf");
+
 } // namespace doris::cloud::config

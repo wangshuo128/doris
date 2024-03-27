@@ -19,6 +19,7 @@
 
 #include <brpc/server.h>
 #include <butil/endpoint.h>
+#include <gen_cpp/PlanNodes_types.h>
 #include <gen_cpp/cloud.pb.h>
 #include <gen_cpp/olap_file.pb.h>
 #include <signal.h>
@@ -34,6 +35,7 @@
 #include "meta-service/txn_kv_error.h"
 #include "recycler/checker.h"
 #include "recycler/s3_accessor.h"
+#include "recycler/hdfs_accessor.h"
 #ifdef UNIT_TEST
 #include "../test/mock_accessor.h"
 #endif
