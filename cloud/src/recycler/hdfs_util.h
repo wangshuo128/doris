@@ -52,7 +52,7 @@ class HDFSCommonBuilder;
         }                            \
     } while (false)
 
-// todo: avoid depending on gutil, dont' use cache. 
+// todo: avoid depending on gutil, dont' use cache.
 class HdfsHandler {
 public:
     HdfsHandler(hdfsFS fs, bool cached)

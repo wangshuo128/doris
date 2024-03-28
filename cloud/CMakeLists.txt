@@ -445,8 +445,7 @@ if (NOT EXISTS "${THIRDPARTY_SRC}/${FDB_LIB}")
 endif ()
 
 # Add fdb dependencies
-#add_definitions(-DFDB_API_VERSION=710)
-add_definitions(-DFDB_API_VERSION=630)
+add_definitions(-DFDB_API_VERSION=710)
 if (NOT EXISTS ${THIRDPARTY_DIR}/include/foundationdb)
     execute_process(COMMAND "md5sum" "${THIRDPARTY_SRC}/${FDB_LIB}"
                     RESULT_VARIABLE MD5SUM_RET_CODE
